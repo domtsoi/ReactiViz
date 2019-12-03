@@ -1,63 +1,10 @@
-Lab 5 - Build Instructions
+ReactiViz Read Me Instructions
 ==========================
-
-Lab machines (Linux)
---------------------
-
-The compiler, CMake, GLM, and GLFW3 should already be installed.
-Skip to "Building and Running the Lab/Assignment" below.
-
-
-Lab machines (Windows)
-----------------------
-
-Visual Studio is installed, and solution files are provided, but you must install `GLM` and `GLFW3` locally.
-
-First, navigate to `Document` and enter the `Visual Studio 2017` folder.
-In this folder, create a folder called `SDKs`.
-
-Next, download `glm-0.9.8.5.zip` at [this location](https://github.com/g-truc/glm/releases/tag/0.9.8.5).
-Extract the `glm` folder into your `SDKs` folder, then rename it to `glm-0.9.8.5`.
-
-Finally, download `glfw-3.2.1.bin.WIN64.zip` at [this location](https://github.com/glfw/glfw/releases/tag/3.2.1).
-Extract the `glfw-3.2.1.bin.WIN64` folder into your `SDKs` folder.
-
-Skip to "Building and Running the Lab/Assignment" below.
-
-
-Ubuntu Linux
-------------
-
-You'll need the following if you don't have them already.
-
-	> sudo apt-get update
-	> sudo apt-get install g++
-	> sudo apt-get install cmake
-	> sudo apt-get install freeglut3-dev
-	> sudo apt-get install libxrandr-dev
-	> sudo apt-get install libxinerama-dev
-	> sudo apt-get install libxcursor-dev
-	> sudo apt-get install libglfw3-dev
-	> sudo apt-get install libglfw3-dev
-
-
-Mac OS X
---------
-
-You can use homebrew/macports or install these manually.
-
-- Xcode developer tools. You'll need to log in with your Apple ID.
-- CMake (<http://cmake.org/download/>)
-- [GLM](http://brewformulas.org/Glm)
-- [GLFW3](http://brewformulas.org/glfw)
-
-Make sure the commands `g++` and `cmake` work from the command prompt.
-
 
 Windows
 -------
 
-First, download **Visual Studio Community 2017**.
+First, download **Visual Studio Community 2019**.
 Make sure to install the C++ development tools.
 
 At this point, you can choose to follow the "Lab machines (Windows)" instructions above.
