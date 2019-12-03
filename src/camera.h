@@ -14,7 +14,7 @@
 using namespace glm;
 using namespace std;
 
-enum rendermodes { MODE_CITYFWD, MODE_CITYSTATIC, MODE_LANDFWD, MODE_LANDSTATIC,MODE_UNKNOWN, MODE_TUNNEL};
+enum rendermodes { MODE_CITYFWD, MODE_CITYSTATIC, MODE_LANDFWD, MODE_LANDSTATIC,MODE_UNKNOWN, MODE_TUNNEL, MODE_BODYSENSE_STATIC};
 
 
 class camera
@@ -85,7 +85,7 @@ public:
 	{
 		float speed = 9;
 		switch (rendermode)
-			{
+		{
 			default:
 			case MODE_CITYFWD:
 			case MODE_CITYSTATIC:
@@ -98,7 +98,7 @@ public:
 			case MODE_TUNNEL:
 			speed = 20;
 			break;
-			}
+		}
 		
 		//frametime = 0.01;
 		float going_forward = 0.0;
@@ -135,11 +135,11 @@ public:
 
 		glm::vec4 offset = glm::vec4(0);
 		if (toggleview)
-			{
+		{
 			float y_offset = actionrot.z * 0.0009;
 			offset = glm::vec4(0, y_offset, -0.0355, 1);
 			offset = R * offset;
-			}
+		}
 	
 		glm::vec4 rpos = glm::vec4(0, 0, old_going_forward, 1);
 
