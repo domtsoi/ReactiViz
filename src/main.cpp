@@ -476,6 +476,9 @@ class Application : public EventCallbacks
 				initialized_VB_laser_count = 0;
 				}
 			
+			/*
+			if (key == GLFW
+			*/
 			/*if (key == GLFW_KEY_F3)
 				{
 				rendermode = MODE_LANDSTATIC;
