@@ -74,6 +74,7 @@ public:
 		if (rendermode == MODE_LANDFWD) toggle_auto = true;
 		if (rendermode == MODE_CITYFWD) toggle_auto = true;
 		if (rendermode == MODE_TUNNEL) toggle_auto = true;
+		if (rendermode == MODE_BODYSENSE_STATIC) toggle_auto = true;
 		}
 
 	vec3 rot_diff() {
@@ -89,14 +90,16 @@ public:
 			default:
 			case MODE_CITYFWD:
 			case MODE_CITYSTATIC:
-			speed = 9;
+				speed = 9;
 			break;
 			case MODE_LANDFWD:
 			case MODE_LANDSTATIC:
-			speed = 30;
+				speed = 30;
 			break;
 			case MODE_TUNNEL:
-			speed = 20;
+				speed = 20;
+			case MODE_BODYSENSE_STATIC:
+				speed = 0;
 			break;
 		}
 		

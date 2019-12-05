@@ -90,3 +90,24 @@ else()
     target_link_libraries(${CMAKE_PROJECT_NAME} "GL" "dl")
   endif()
 endif()
+
+
+
+
+# Find Kinect SDK v2
+set( CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}" ${CMAKE_MODULE_PATH} )
+find_package( KinectSDK2 REQUIRED )
+
+# Settings Kinect SDK v2
+
+if(KinectSDK2_FOUND)
+
+  include_directories( ${KinectSDK2_INCLUDE_DIRS} )
+
+  link_directories( ${KinectSDK2_LIBRARY_DIRS} )
+
+  target_link_libraries( ${CMAKE_PROJECT_NAME} ${KinectSDK2_LIBRARIES} )
+
+  add_custom_command( TARGET project POST_BUILD ${KinectSDK2_COMMANDS} )
+
+endif()

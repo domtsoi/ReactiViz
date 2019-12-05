@@ -26,6 +26,7 @@
 #include "recordAudio.h"
 #include "kiss_fft.h"
 
+
 # define M_PI          3.141592653589793238462643383279502884L /* pi */
 
 
@@ -358,7 +359,8 @@ class Application : public EventCallbacks
 		WindowManager* windowManager = nullptr;
 
 		// Our shader program
-		std::shared_ptr<Program> prog, progs, prog2, progsky, progg, prog_laser, prog_blur, progland, progland2, prog_bloom, progspheres, progspheres_tunnel, prog_face, prog_roundlaser, prog_lasereyes, progtunnel2, progtunnel;
+		std::shared_ptr<Program> prog, progs, prog2, progsky, progg, prog_laser, prog_blur, progland, progland2, prog_bloom, progspheres, progspheres_tunnel, prog_face, prog_roundlaser, prog_lasereyes, progtunnel2, progtunnel, prog_bodysense_static;
+		//std::shared_ptr<Kinect> kinect = m
 		bool toogle_view = false;
 		// Shape to be used (from obj file)
 		shared_ptr<Shape> shape, sphere, sphere2,rects, sphere_land, sphere_tunnel, face,eyes;
@@ -477,7 +479,13 @@ class Application : public EventCallbacks
 				}
 			
 			/*
-			if (key == GLFW
+			if (key == GLFW_KEY_F5)
+			{
+				rendermode = MODE_BODYSENSE_STATIC;
+				mycam.reset(rendermode);
+
+			}
+
 			*/
 			/*if (key == GLFW_KEY_F3)
 				{
@@ -925,19 +933,31 @@ class Application : public EventCallbacks
 			prog_lasereyes->setVerbose(true);
 			prog_lasereyes->setShaderNames(resourceDirectory + "/vert_laser.glsl", resourceDirectory + "/laser_frag.glsl", resourceDirectory + "/geometry_lasereyes.glsl");
 			if (!prog_lasereyes->init())
-				{
+			{
 				std::cerr << "One or more shaders failed to compile... exiting!" << std::endl;
 				exit(1);
-				}
+			}
 			prog_lasereyes->addUniform("P");
 			prog_lasereyes->addUniform("V");
 			prog_lasereyes->addUniform("M");	
 			prog_lasereyes->addAttribute("vertPos");
 			prog_lasereyes->addAttribute("vertCol");
 			prog_lasereyes->addAttribute("vertDir");
-
-
+			/*
+			prog_bodysense_static = make_shared<Program>();
+			prog_bodysense_static->setVerbose(true);
+			prog_bodysense_static->setShaderNames(resourceDirectory + "", resourceDirectory + "", );
+			if (!prog_bodysense_static->init())
+			{
+				std::cerr << "One or more shaders failed to compile... exiting!" << std::endl;
+				exit(1);
 			}
+			*/
+			//TODO: add all the necessary uniforms here
+
+
+		}
+
 		GLuint generate_texture2D(GLushort colortype, int width, int height, GLushort colororder, GLushort datatype, BYTE * data, GLushort wrap, GLushort minfilter, GLushort magfilter)
 			{
 			GLuint textureID;
@@ -1256,9 +1276,9 @@ class Application : public EventCallbacks
 
 
 			for (int i = 0; i < 10; i++)
-				{
+			{
 				amplitude_on_frequency_10steps[i] = 0;
-				}
+			}
 			//init rectangle mesh (2 triangles) for the post processing
 			glGenVertexArrays(1, &VertexArrayIDBox);
 			glBindVertexArray(VertexArrayIDBox);
@@ -2846,24 +2866,23 @@ void modechange(double frametime)
 //********************************************************************************
 extern int running;
 int main(int argc, char** argv)
-	{
+{
 	 float weights[TEXELSIZE];
 
 	
-		for (int ii = 0; ii < TEXELSIZE; ii++)
-		{
-			
-			weights[ii] = 1. + pow((float)(ii / 10.0), 2)*10.;
-		}
+	for (int ii = 0; ii < TEXELSIZE; ii++)
+	{			
+		weights[ii] = 1. + pow((float)(ii / 10.0), 2)*10.;
+	}
 
 	srand(time(0));
 	// Where the resources are loaded from
 	std::string resourceDir = "../resources";
 
 	if (argc >= 2)
-		{
+	{
 		resourceDir = argv[1];
-		}
+	}
 
 	Application* application = new Application();
 
@@ -2892,15 +2911,13 @@ int main(int argc, char** argv)
 
 
 	while (!glfwWindowShouldClose(windowManager->getHandle()))
-		{
-
+	{
 		static double totaltime = 0;
 		double frametime = get_last_elapsed_time();
 		totaltime += frametime;
 		framecount++;
 
 		windowManager->SetFullScreen(fullscreen);
-
 
 		modechange(frametime);
 
@@ -2929,8 +2946,7 @@ int main(int argc, char** argv)
 		//sw.start();
 		#ifndef NOAUDIO
 			application->aquire_fft_scaling_arrays();
-		#endif
-		
+		#endif	
 		//fps[3] += sw.elapse_micro();
 	//	sw.start();
 		application->render_to_cubemap(frametime);
