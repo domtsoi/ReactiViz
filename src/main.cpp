@@ -7,8 +7,8 @@
 #include <algorithm>
 #include <glad/glad.h>
 #include <time.h>
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
+//#define STB_IMAGE_IMPLEMENTATION
+//#include "stb_image.h"
 
 #include "GLSL.h"
 #include "Program.h"
@@ -26,6 +26,10 @@
 #include "recordAudio.h"
 #include "kiss_fft.h"
 
+//Kinect Stuff
+#include "necessary_includes.h"
+#include "elements/Kinect/Kinect.h"
+#include "elements/Frames/Frames.h"
 
 # define M_PI          3.141592653589793238462643383279502884L /* pi */
 
@@ -61,6 +65,15 @@ const bool forceresolution = false;
 #define FFTW_ESTIMATEE (1U << 6)
 #define FFT_MAXSIZE 500
 #define FFT_REALSIZE (FFT_MAXSIZE/4)
+
+//Kinect Attributes
+#define NUM_BODIES 6
+#define WIDTH 1920
+#define HEIGHT 1080
+
+
+int width = WIDTH;
+int height = HEIGHT;
 
 class StopWatchMicro_
 {
@@ -360,7 +373,7 @@ class Application : public EventCallbacks
 
 		// Our shader program
 		std::shared_ptr<Program> prog, progs, prog2, progsky, progg, prog_laser, prog_blur, progland, progland2, prog_bloom, progspheres, progspheres_tunnel, prog_face, prog_roundlaser, prog_lasereyes, progtunnel2, progtunnel, prog_bodysense_static;
-		//std::shared_ptr<Kinect> kinect = m
+		std::shared_ptr<Kinect> kinect = make_shared<Kinect>(NUM_BODIES, WIDTH, HEIGHT); 
 		bool toogle_view = false;
 		// Shape to be used (from obj file)
 		shared_ptr<Shape> shape, sphere, sphere2,rects, sphere_land, sphere_tunnel, face,eyes;
@@ -476,9 +489,7 @@ class Application : public EventCallbacks
 				rendermode = MODE_TUNNEL;
 				mycam.reset(rendermode);
 				initialized_VB_laser_count = 0;
-				}
-			
-			/*
+				}			
 			if (key == GLFW_KEY_F5)
 			{
 				rendermode = MODE_BODYSENSE_STATIC;
@@ -486,7 +497,6 @@ class Application : public EventCallbacks
 
 			}
 
-			*/
 			/*if (key == GLFW_KEY_F3)
 				{
 				rendermode = MODE_LANDSTATIC;
@@ -622,6 +632,8 @@ class Application : public EventCallbacks
 
 			GLSL::checkVersion();
 
+			//Initialize kinect
+			kinect->init();
 
 			// Set background color.
 			glClearColor(0.12f, 0.34f, 0.56f, 1.0f);
@@ -956,6 +968,25 @@ class Application : public EventCallbacks
 			//TODO: add all the necessary uniforms here
 
 
+		}
+
+		void prepare_to_render()
+		{
+			kinect->get_depth();
+			kinect->get_color();
+			kinect->update_bodies();
+		}
+
+		void render()
+		{
+			double frametime = get_last_elapsed_time();
+			float aspect = width / (float)height;
+			glViewport(0, 0, width, height);
+			glClearColor(.8, .8, 1, 1.0f);
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			glEnable(GL_BLEND);
+			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+			kinect->draw_bodies();
 		}
 
 		GLuint generate_texture2D(GLushort colortype, int width, int height, GLushort colororder, GLushort datatype, BYTE * data, GLushort wrap, GLushort minfilter, GLushort magfilter)
@@ -2968,22 +2999,27 @@ int main(int argc, char** argv)
 			bloomon = true;
 		
 		if (bloomon && (rendermode == MODE_LANDFWD || rendermode == MODE_TUNNEL))
-			{
+		{
 			application->render_postproc(frametime, 0, bluron, application->prog_bloom,true, application->FBOcolor_no_ssaa[1], application->FBOcolor_no_ssaa[0], application->FBOcolor_bloommap);
 			application->render_postproc(frametime, 1, bluron, application->prog_bloom, false, NULL,application->FBOcolor_no_ssaa[0], application->FBOcolor_no_ssaa[1]);
-			}
+		}
+		else if(rendermode == MODE_BODYSENSE_STATIC)
+		{
+			application->prepare_to_render();
+			application->render();
+		}
 		else
-			{
+		{
 			application->render_postproc(frametime, 0, bluron, application->prog_blur, true, application->FBOcolor_no_ssaa[1], application->FBOcolor_no_ssaa[0], application->FBOcolor_blurmap);
 			application->render_postproc(frametime, 1, bluron, application->prog_blur, false, NULL, application->FBOcolor_no_ssaa[1],application->FBOcolor_blurmap);
-			}
+		}
 		//	fps[7] += sw.elapse_micro();
 
 			// Swap front and back buffers.
 		glfwSwapBuffers(windowManager->getHandle());
 		// Poll for and process events.
 		glfwPollEvents();
-		}
+	}
 	running = FALSE;
 #ifndef NOAUDIO
 	t1.join();
@@ -2992,4 +3028,4 @@ int main(int argc, char** argv)
 	// Quit program.
 	windowManager->shutdown();
 	return 0;
-	}
+}
