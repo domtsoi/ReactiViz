@@ -955,19 +955,9 @@ class Application : public EventCallbacks
 			prog_lasereyes->addAttribute("vertPos");
 			prog_lasereyes->addAttribute("vertCol");
 			prog_lasereyes->addAttribute("vertDir");
-			/*
-			prog_bodysense_static = make_shared<Program>();
-			prog_bodysense_static->setVerbose(true);
-			prog_bodysense_static->setShaderNames(resourceDirectory + "", resourceDirectory + "", );
-			if (!prog_bodysense_static->init())
-			{
-				std::cerr << "One or more shaders failed to compile... exiting!" << std::endl;
-				exit(1);
-			}
-			*/
-			//TODO: add all the necessary uniforms here
 
-
+			//Initialize kinect
+			kinect->init();
 		}
 
 		void prepare_to_render()
@@ -981,6 +971,7 @@ class Application : public EventCallbacks
 		{
 			double frametime = get_last_elapsed_time();
 			float aspect = width / (float)height;
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
 			glViewport(0, 0, width, height);
 			glClearColor(.8, .8, 1, 1.0f);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -2455,6 +2446,8 @@ class Application : public EventCallbacks
 				case MODE_TUNNEL:				
 					render_tunnel(width, height, P, M_wobble * V, true, frametime);
 				break;
+				case MODE_BODYSENSE_STATIC:
+					break;
 				}
 			}
 
@@ -2829,7 +2822,7 @@ class Application : public EventCallbacks
 void modechange(double frametime)
 	{
 	if (!mycam.toggle_auto)			return;
-	if (!(rendermode == MODE_CITYFWD || rendermode == MODE_CITYSTATIC || rendermode == MODE_TUNNEL)) return;
+	if (!(rendermode == MODE_CITYFWD || rendermode == MODE_CITYSTATIC || rendermode == MODE_TUNNEL || rendermode == MODE_BODYSENSE_STATIC)) return;
 
 	static double totaltime_since_last_change = 0;
 	static double seconds_in_reverse_mode = 0;

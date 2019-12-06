@@ -16,7 +16,8 @@ uniform vec4 bodies[max_bodies * num_joints];
 uniform int time_stamps[max_bodies];
 uniform int num_bodies;
 uniform float time;
-
+uniform int music_influence;
+//PLAY WITH MIN THRESHHOLD VALUES TO GET BETTER BLEND (If max thresh == minthresh background == body static lvl)
 const float min_thresh = 0.01;
 const float max_thresh = 0.05;
 const float xy_epsilon = 0.08;
@@ -47,6 +48,9 @@ float get_threshold(float time_stamp)
 
 void main()
 {
+
+	vec4 back_color = vec4(0, 0, 0, 1);
+	// if (music_influence == THEME1) back_color = vec4(THEME1_R, ..., 1);
 	vec3 pos = vec3(vertex_tex, texture(depth_tex, vertex_tex).r);
 	vec2 npos = vertex_tex + vec2(time);
 	float r = rand(npos);
@@ -63,7 +67,7 @@ void main()
 							 gold_noise(npos, sq2),
 													   1);
 
-				if (r > get_threshold(abs(time_stamps[i]))) color = vec4(0, 0, 0, 1);
+				if (r > get_threshold(abs(time_stamps[i]))) color = back_color;
 				return;
 			}
 		}
@@ -75,5 +79,5 @@ void main()
 				 gold_noise(npos, sq2),
 										   1);
 
-	if (r > min_thresh) color = vec4(0, 0, 0, 1);
+	if (r > min_thresh) color = back_color;
 }

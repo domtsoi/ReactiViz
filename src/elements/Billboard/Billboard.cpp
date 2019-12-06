@@ -222,6 +222,7 @@ void Billboard::draw(shared_ptr<Frames> frames, shared_ptr<vector<Body>> bodies,
 	glUniform1iv(prog->getUniform("time_stamps"), bodies->size(), time_stamps->data());
 	glUniform1i(prog->getUniform("num_bodies"), bodies->size());
 	glUniform1f(prog->getUniform("time"), time);
+	//glUnfirom1i(prog->getUniform("music_influence")) ...
 	
 	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, (void*)0);
 	glBindVertexArray(0);

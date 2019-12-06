@@ -62,12 +62,12 @@ if(bluractive > 0.5)
 	for(int i = 0; i < 6; i++)
 		{
 		vec2 toff=direction_blur*i;
-		blurcolor += texture2D(colortex,fragTex + toff).rgb * weights[i];
+		blurcolor += texture(colortex,fragTex + toff).rgb * weights[i];
 		}
 	for(int i = 0; i < 6; i++)
 		{
 		vec2 toff=-direction_blur*i;
-		blurcolor += texture2D(colortex,fragTex + toff).rgb * weights[i];
+		blurcolor += texture(colortex,fragTex + toff).rgb * weights[i];
 		}
 
 	color.rgb = mix(color.rgb,blurcolor*0.6,motion_blur_fact);	

@@ -74,7 +74,7 @@ public:
 		if (rendermode == MODE_LANDFWD) toggle_auto = true;
 		if (rendermode == MODE_CITYFWD) toggle_auto = true;
 		if (rendermode == MODE_TUNNEL) toggle_auto = true;
-		if (rendermode == MODE_BODYSENSE_STATIC) toggle_auto = true;
+		//if (rendermode == MODE_BODYSENSE_STATIC) toggle_auto = true;
 		}
 
 	vec3 rot_diff() {

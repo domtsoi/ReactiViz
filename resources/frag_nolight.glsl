@@ -187,7 +187,7 @@ vec3 blurcolor = vec3(0,0,0);
 	float reflecton = texture(worldnormal, fragTex).w;
 if(reflecton>0.1)
 	{
-	vec3 viewNormal = vec3(inverse(Vcam)*vec4(texture2D(worldnormal, fragTex).xyz,0));
+	vec3 viewNormal = vec3(inverse(Vcam)*vec4(texture(worldnormal, fragTex).xyz,0));
     
 	
 	
