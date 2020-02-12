@@ -14,7 +14,7 @@
 using namespace glm;
 using namespace std;
 
-enum rendermodes { MODE_CITYFWD, MODE_CITYSTATIC, MODE_LANDFWD, MODE_LANDSTATIC,MODE_UNKNOWN, MODE_TUNNEL, MODE_BODYSENSE_STATIC};
+enum rendermodes { MODE_CITYFWD, MODE_CITYSTATIC, MODE_LANDFWD, MODE_LANDSTATIC,MODE_UNKNOWN, MODE_TUNNEL, MODE_BODYSENSE_STATIC, MODE_TEXTURE_TEST};
 
 
 class camera
@@ -32,27 +32,29 @@ public:
 	bool toggleview;
 	float old_going_forward;
 	void toggle() { toggleview = !toggleview; }
+	
 	float delay(float old, float actual, float mul)
-		{
+	{
 	//	if (actual > old) return actual;
 		float fold = (float)old;
 		float factual = (float)actual;
 		float fres = fold - (fold - factual) * mul;
 		return (float)fres;
-		}
+	}
+
 	float get_speed()
-		{
+	{
 		if (toggleview)return -speed;
 		return speed;
-		}
+	}
 
 	camera()
-		{
+	{
 		reset(MODE_UNKNOWN);
-		}
+	}
+
 	void reset(rendermodes rendermode)
 	{
-		
 		old_going_forward = 0.0;
 		speed = 0;
 		toggleview = false;
@@ -77,14 +79,16 @@ public:
 		//if (rendermode == MODE_BODYSENSE_STATIC) toggle_auto = true;
 		}
 
-	vec3 rot_diff() {
+	vec3 rot_diff() 
+	{
 		vec3 diff = rot - oldrot;
 		//cout << diff.y << " " << rot.y << " " << oldrot.y<< endl;
 		return diff; 
-		}
+	}
+
 	glm::mat4 process(float frametime, rendermodes rendermode)
 	{
-		float speed = 9;
+		float speed = 0;
 		switch (rendermode)
 		{
 			default:
@@ -99,6 +103,8 @@ public:
 			case MODE_TUNNEL:
 				speed = 20;
 			case MODE_BODYSENSE_STATIC:
+				speed = 10;
+			case MODE_TEXTURE_TEST:
 				speed = 0;
 			break;
 		}

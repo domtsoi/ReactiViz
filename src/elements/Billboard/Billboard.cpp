@@ -14,12 +14,12 @@ Billboard::Billboard()
 {
 	string resource_dir = "../resources/";
 	char* uniforms[] = {
-		"bodies", "num_bodies", "time_stamps", "time"
+		"bodies", "num_bodies", "time_stamps", "time", "music_influence"
 	};
 	char* attributes[] = {
 		"vertPos", "vertTex"
 	};
-	prog = initProg(resource_dir + "body_vertex.glsl", resource_dir + "body_frag.glsl", uniforms, attributes, 4, 2);
+	prog = initProg(resource_dir + "body_vertex.glsl", resource_dir + "body_frag.glsl", uniforms, attributes, 5, 2);
 	glUseProgram(prog->pid);
 	
 	char* texUniforms[] = { "depth_tex", "color_tex", "static_tex" };
@@ -224,6 +224,31 @@ void Billboard::draw(shared_ptr<Frames> frames, shared_ptr<vector<Body>> bodies,
 	glUniform1f(prog->getUniform("time"), time);
 	//glUnfirom1i(prog->getUniform("music_influence")) ...
 	
+	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, (void*)0);
+	glBindVertexArray(0);
+
+	prog->unbind();
+}
+
+void Billboard::draw(shared_ptr<Frames> frames, shared_ptr<vector<Body>> bodies, shared_ptr<vector<int>> time_stamps, float music_influence)
+{
+	prog->bind();
+	glBindVertexArray(VAID);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IDX_BUF);
+	time += (get_elapsed_time() / 1000.f);
+
+	for (int i = 0; i < 3; ++i)
+	{
+		glActiveTexture(GL_TEXTURE0 + i);
+		glBindTexture(GL_TEXTURE_2D, frames->get_text_id(i));
+	}
+
+	glUniform4fv(prog->getUniform("bodies"), NUM_JOINTS * bodies->size(), (GLfloat*)bodies->data());
+	glUniform1iv(prog->getUniform("time_stamps"), bodies->size(), time_stamps->data());
+	glUniform1i(prog->getUniform("num_bodies"), bodies->size());
+	glUniform1f(prog->getUniform("time"), time);
+	glUniform1f(prog->getUniform("music_influence"), music_influence);
+
 	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, (void*)0);
 	glBindVertexArray(0);
 

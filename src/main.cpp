@@ -285,7 +285,6 @@ bool fft(float* amplitude_on_frequency, int& length)
 	actualAudioData.readAudio(data, size);
 	length = size / 8;
 
-
 	if (size == 0)
 		return false;
 
@@ -328,9 +327,9 @@ bool fft(float* amplitude_on_frequency, int& length)
 			attack_factor = 0.85; //for going up
 		diff *= attack_factor;
 		amplitude_on_frequency[i] = amplitude_on_frequency_old[i] - diff;
+	//std:cout << "Current amplitude: " << amplitude_on_frequency[i] << "@ frequency" << i << endl;
 	}
 	//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
 
 	length /= 2;
 	free(cfg);
@@ -346,9 +345,6 @@ double get_last_elapsed_time()
 	lasttime = actualtime;
 	return difference;
 }
-
-
-
 
 using namespace std;
 using namespace glm;
@@ -368,9 +364,11 @@ class Application : public EventCallbacks
 	public:
 		bool beattrigger = false;
 		bool lasertrigger = false;
+		bool kinect_music = false;
 		int initialized_VB_laser_count = 0;
 		float amplitude_on_frequency[FFT_MAXSIZE];
 		float amplitude_on_frequency_10steps[10];
+		float global_music_influence = 0;
 
 		float z_schwenk = 0;
 		mat4 M_wobble = mat4(1), M_facetrinity = mat4(1);
@@ -378,18 +376,18 @@ class Application : public EventCallbacks
 		WindowManager* windowManager = nullptr;
 
 		// Our shader program
-		std::shared_ptr<Program> prog, progs, prog2, progsky, progg, prog_laser, prog_blur, progland, progland2, prog_bloom, progspheres, progspheres_tunnel, prog_face, prog_roundlaser, prog_lasereyes, progtunnel2, progtunnel, prog_bodysense_static;
+		std::shared_ptr<Program> prog, progs, prog2, progsky, progg, prog_laser, prog_blur, progland, progland2, prog_bloom, progspheres, progspheres_tunnel, prog_face, prog_roundlaser, prog_lasereyes, progtunnel2, progtunnel, prog_tv;
 		std::shared_ptr<Kinect> kinect = make_shared<Kinect>(NUM_BODIES, WIDTH, HEIGHT); 
 		bool toogle_view = false;
 		// Shape to be used (from obj file)
-		shared_ptr<Shape> shape, sphere, sphere2,rects, sphere_land, sphere_tunnel, face,eyes;
+		shared_ptr<Shape> shape, sphere, armor,rects, sphere_land, sphere_tunnel, face,eyes, tv;
 		cityfieldelement_ cityfield[CITYSLOTS * 2 + 1][CITYSLOTS * 2 + 1];
 		//camera
 
 
 		//texture for sim
-		GLuint TextureEarth, TexNoise, FBObloommask, TexGod, TextureSky, TextureLandBG, TextureLandBGgod, TexLaser, g_cubeTexture, TexSuitMask, TexSuit, TexLensdirt, TexLaserMask;
-		GLuint TextureF[6], FBOcolor, fb, FBO_blur, depth_rb, depth_blur , FBOviewpos, FBOworldnormal, FBOworldpos, FBOgodrays, FBOcolor_no_ssaa[2], FBOcolor_blurmap, FBOcolor_bloommap;
+		GLuint TextureEarth, TexNoise, FBObloommask, TexGod, TextureSky, TextureLandBG, TextureLandBGgod, TexLaser, g_cubeTexture, TexSuitMask, TexSuit, TexLensdirt, TexLaserMask, TexTV;
+		GLuint TextureF[6], FBOcolor, fb, FBO_blur, depth_rb, depth_blur , FBOviewpos, FBOworldnormal, FBOworldpos, FBOgodrays, FBOcolor_no_ssaa[2], FBOcolor_blurmap, FBOcolor_bloommap,FBOtv;
 		GLuint Cube_framebuffer, Cube_depthbuffer, VBLasersPos, VBLasersCol, VAOLasers,VAOtunnellaser, VAOland, IBland, IBlandfull, VBLasersDir, VAOtunnel, IBtunnel, IBtunnelfull,IBtunnellaser;
 		GLuint IBlandsize, IBtunnelsize, IBlandfullsize, IBtunnelfullsize, TexAudio, IBtunnellasersize, TexTunnelLaser, VB_roundlaser_frequ;
 		GLuint VertexArrayIDBox, VertexBufferIDBox, VertexBufferTex;
@@ -399,6 +397,18 @@ class Application : public EventCallbacks
 
 		// Data necessary to give our triangle to OpenGL
 		GLuint VertexBufferID;
+
+		//texturetest stuff
+		shared_ptr<Shape> texturetest_skysphere;
+		// Our shader program
+		std::shared_ptr<Program> ptexturetest1, ptexturetestsky, ptexturetestpostproc;
+		GLuint texturetestVertexArrayID, texturetestVertexArrayIDScreen;
+		GLuint texturetestVertexBufferID, texturetestVertexBufferTexScreen, texturetestVertexBufferIDScreen, texturetestVertexNormDBox, texturetestVertexTexBox, texturetestIndexBufferIDBox, texturetestInstanceBuffer;
+		//framebufferstuff
+		GLuint texturetestfb, texturetestdepth_fb, texturetestFBOtex; //Look at FBOtex
+		//texture data
+		GLuint texturetestTexture;
+		GLuint texturetestTexture2;
 
 	void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
 	{
@@ -467,6 +477,17 @@ class Application : public EventCallbacks
 			else
 				mycam.rot.z = 0;
 		}
+		if (key == GLFW_KEY_K && action == GLFW_RELEASE)
+		{
+			if (kinect_music)
+			{
+				kinect_music = false;
+			}
+			else
+			{
+				kinect_music = true;
+			}
+		}
 		if (key == GLFW_KEY_F1)
 		{
 			rendermode = MODE_CITYFWD;
@@ -500,7 +521,11 @@ class Application : public EventCallbacks
 		{
 			rendermode = MODE_BODYSENSE_STATIC;
 			mycam.reset(rendermode);
-
+		}
+		if (key == GLFW_KEY_F6)
+		{
+			rendermode = MODE_TEXTURE_TEST;
+			mycam.reset(rendermode);
 		}
 		/*if (key == GLFW_KEY_F3)
 			{
@@ -631,6 +656,56 @@ class Application : public EventCallbacks
 		//*******************************************************************************************************
 	}
 
+	void texturetest_init(const std::string& resourceDirectory)
+	{
+		// Initialize the GLSL program.
+		ptexturetest1 = std::make_shared<Program>();
+		ptexturetest1->setVerbose(true);
+		ptexturetest1->setShaderNames(resourceDirectory + "/shader_vertex.glsl", resourceDirectory + "/shader_fragment.glsl");
+		if (!ptexturetest1->init())
+		{
+			std::cerr << "One or more shaders failed to compile... exiting!" << std::endl;
+			exit(1);
+		}
+		ptexturetest1->addUniform("P");
+		ptexturetest1->addUniform("V");
+		ptexturetest1->addUniform("M");
+		ptexturetest1->addUniform("campos");
+		ptexturetest1->addAttribute("vertPos");
+		ptexturetest1->addAttribute("vertNor");
+		ptexturetest1->addAttribute("vertTex");
+		ptexturetest1->addAttribute("InstancePos");
+
+		ptexturetestsky = std::make_shared<Program>();
+		ptexturetestsky->setVerbose(true);
+		ptexturetestsky->setShaderNames(resourceDirectory + "/skyvertex.glsl", resourceDirectory + "/skyfrag.glsl");
+		if (!ptexturetestsky->init())
+		{
+			std::cerr << "One or more shaders failed to compile... exiting!" << std::endl;
+			exit(1);
+		}
+		ptexturetestsky->addUniform("P");
+		ptexturetestsky->addUniform("V");
+		ptexturetestsky->addUniform("M");
+		ptexturetestsky->addUniform("campos");
+		ptexturetestsky->addAttribute("vertPos");
+		ptexturetestsky->addAttribute("vertNor");
+		ptexturetestsky->addAttribute("vertTex");
+
+		//program for the postprocessing
+		ptexturetestpostproc = std::make_shared<Program>();
+		ptexturetestpostproc->setVerbose(true);
+		ptexturetestpostproc->setShaderNames(resourceDirectory + "/postproc_vertex.glsl", resourceDirectory + "/postproc_fragment.glsl");
+		if (!ptexturetestpostproc->init())
+		{
+			std::cerr << "One or more shaders failed to compile... exiting!" << std::endl;
+			exit(1);
+		}
+		ptexturetestpostproc->addAttribute("vertPos");
+		ptexturetestpostproc->addAttribute("vertTex");
+
+	}
+
 	void init(const std::string & resourceDirectory)
 	{
 		mycam.reset(rendermode);
@@ -639,6 +714,9 @@ class Application : public EventCallbacks
 
 		//Initialize kinect
 		kinect->init();
+
+		//Initialize texture test scene
+		texturetest_init(resourceDirectory);
 
 		// Set background color.
 		glClearColor(0.12f, 0.34f, 0.56f, 1.0f);
@@ -956,7 +1034,24 @@ class Application : public EventCallbacks
 
 		//Initialize kinect
 		kinect->init();
-	}
+
+		prog_tv = make_shared<Program>();
+		prog_tv->setVerbose(true);
+		prog_tv->setShaderNames(resourceDirectory + "/tv_vertex.glsl", resourceDirectory + "/tv_fragment");
+		if (!prog_tv->init())
+		{
+			std::cerr << "One or more shaders failed to compile... exiting!" << std::endl;
+			exit(1);
+		}
+		prog_tv->addUniform("P");
+		prog_tv->addUniform("V");
+		prog_tv->addUniform("M");
+		prog_tv->addUniform("campos");
+		prog_tv->addAttribute("vertPos");
+		prog_tv->addAttribute("vertNor");
+		prog_tv->addAttribute("vertTex");
+		prog_tv->addAttribute("InstancePos");
+}
 
 	void prepare_to_render()
 	{
@@ -975,7 +1070,14 @@ class Application : public EventCallbacks
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		kinect->draw_bodies();
+		if (kinect_music)
+		{
+			kinect->draw_bodies(global_music_influence);
+		}
+		else
+		{
+			kinect->draw_bodies();
+		}
 	}
 
 	GLuint generate_texture2D(GLushort colortype, int width, int height, GLushort colororder, GLushort datatype, BYTE * data, GLushort wrap, GLushort minfilter, GLushort magfilter)
@@ -1265,11 +1367,255 @@ class Application : public EventCallbacks
 
 		glBindVertexArray(0);
 	}
+	//Dom TV Initialization
+	void initTV(const std::string& resourceDirectory)
+	{
+		tv = make_shared<Shape>();
+		tv->loadMesh(resourceDirectory + "/OldTV2.obj");
+		tv->resize();
+		tv->init();
+	}
+
+
+	void texturetest_initGeom()
+	{
+		string resourceDirectory = "../resources";
+		// Initialize mesh.
+		texturetest_skysphere = make_shared<Shape>();
+		texturetest_skysphere->loadMesh(resourceDirectory + "/sphere.obj");
+		texturetest_skysphere->resize();
+		texturetest_skysphere->init();
+
+		//screen plane
+		glGenVertexArrays(1, &texturetestVertexArrayIDScreen);
+		glBindVertexArray(texturetestVertexArrayIDScreen);
+		//generate vertex buffer to hand off to OGL
+		glGenBuffers(1, &texturetestVertexBufferIDScreen);
+		//set the current state to focus on our vertex buffer
+		glBindBuffer(GL_ARRAY_BUFFER, texturetestVertexBufferIDScreen);
+		vec3 vertices[6];
+		vertices[0] = vec3(-1, -1, 0);
+		vertices[1] = vec3(1, -1, 0);
+		vertices[2] = vec3(1, 1, 0);
+		vertices[3] = vec3(-1, -1, 0);
+		vertices[4] = vec3(1, 1, 0);
+		vertices[5] = vec3(-1, 1, 0);
+		//actually memcopy the data - only do this once
+		glBufferData(GL_ARRAY_BUFFER, 6 * sizeof(vec3), vertices, GL_STATIC_DRAW);
+		//we need to set up the vertex array
+		glEnableVertexAttribArray(0);
+		//key function to get up how many elements to pull out at a time (3)
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
+		//generate vertex buffer to hand off to OGL
+		glGenBuffers(1, &texturetestVertexBufferTexScreen);
+		//set the current state to focus on our vertex buffer
+		glBindBuffer(GL_ARRAY_BUFFER, texturetestVertexBufferTexScreen);
+		vec2 texscreen[6];
+		texscreen[0] = vec2(0, 0);
+		texscreen[1] = vec2(1, 0);
+		texscreen[2] = vec2(1, 1);
+		texscreen[3] = vec2(0, 0);
+		texscreen[4] = vec2(1, 1);
+		texscreen[5] = vec2(0, 1);
+		//actually memcopy the data - only do this once
+		glBufferData(GL_ARRAY_BUFFER, 6 * sizeof(vec2), texscreen, GL_STATIC_DRAW);
+		//we need to set up the vertex array
+		glEnableVertexAttribArray(1);
+		//key function to get up how many elements to pull out at a time (3)
+		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, (void*)0);
+		glBindVertexArray(0);
+
+
+		//generate the VAO
+		glGenVertexArrays(1, &texturetestVertexArrayID);
+		glBindVertexArray(texturetestVertexArrayID);
+
+		//generate vertex buffer to hand off to OGL
+		glGenBuffers(1, &texturetestVertexBufferID);
+		//set the current state to focus on our vertex buffer
+		glBindBuffer(GL_ARRAY_BUFFER, texturetestVertexBufferID);
+
+		GLfloat cube_vertices[] = {
+			// front
+			-1.0, -1.0,  1.0,//LD
+			1.0, -1.0,  1.0,//RD
+			1.0,  1.0,  1.0,//RU
+			-1.0,  1.0,  1.0,//LU
+		};
+		//make it a bit smaller
+		for (int i = 0; i < 12; i++)
+			cube_vertices[i] *= 0.5;
+		//actually memcopy the data - only do this once
+		glBufferData(GL_ARRAY_BUFFER, sizeof(cube_vertices), cube_vertices, GL_DYNAMIC_DRAW);
+
+		//we need to set up the vertex array
+		glEnableVertexAttribArray(0);
+		//key function to get up how many elements to pull out at a time (3)
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
+
+		//color
+		GLfloat cube_norm[] = {
+			// front colors
+			0.0, 0.0, 1.0,
+			0.0, 0.0, 1.0,
+			0.0, 0.0, 1.0,
+			0.0, 0.0, 1.0,
+
+		};
+		glGenBuffers(1, &texturetestVertexNormDBox);
+		//set the current state to focus on our vertex buffer
+		glBindBuffer(GL_ARRAY_BUFFER, texturetestVertexNormDBox);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(cube_norm), cube_norm, GL_STATIC_DRAW);
+		glEnableVertexAttribArray(1);
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
+
+		//color
+		glm::vec2 cube_tex[] = {
+			// front colors
+			glm::vec2(0.0, 1.0),
+			glm::vec2(1.0, 1.0),
+			glm::vec2(1.0, 0.0),
+			glm::vec2(0.0, 0.0),
+
+		};
+		glGenBuffers(1, &texturetestVertexTexBox);
+		//set the current state to focus on our vertex buffer
+		glBindBuffer(GL_ARRAY_BUFFER, texturetestVertexTexBox);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(cube_tex), cube_tex, GL_STATIC_DRAW);
+		glEnableVertexAttribArray(2);
+		glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, (void*)0);
+
+		glGenBuffers(1, &texturetestIndexBufferIDBox);
+		//set the current state to focus on our vertex buffer
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, texturetestIndexBufferIDBox);
+		GLushort cube_elements[] = {
+
+			// front
+			0, 1, 2,
+			2, 3, 0,
+		};
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(cube_elements), cube_elements, GL_STATIC_DRAW);
+
+
+		//generate vertex buffer to hand off to OGL ###########################
+		glGenBuffers(1, &texturetestInstanceBuffer);
+		//set the current state to focus on our vertex buffer
+		glBindBuffer(GL_ARRAY_BUFFER, texturetestInstanceBuffer);
+		glm::vec4* positions = new glm::vec4[500];
+		for (int i = 0; i < 500; i++)
+			positions[i] = glm::vec4(-250 + i, 0, -10, 0);
+		//actually memcopy the data - only do this once
+		glBufferData(GL_ARRAY_BUFFER, 500 * sizeof(glm::vec4), positions, GL_STATIC_DRAW);
+		int position_loc = glGetAttribLocation(ptexturetest1->pid, "InstancePos");
+		for (int i = 0; i < 500; i++)
+		{
+			// Set up the vertex attribute
+			glVertexAttribPointer(position_loc + i,              // Location
+				4, GL_FLOAT, GL_FALSE,       // vec4
+				sizeof(vec4),                // Stride
+				(void*)(sizeof(vec4) * i)); // Start offset
+											 // Enable it
+			glEnableVertexAttribArray(position_loc + i);
+			// Make it instanced
+			glVertexAttribDivisor(position_loc + i, 1);
+		}
+
+		glBindVertexArray(0);
+
+		int width, height, channels;
+		char filepath[1000];
+
+		//texture 1
+		string str = resourceDirectory + "/mario.png";
+		strcpy(filepath, str.c_str());
+		unsigned char* data = stbi_load(filepath, &width, &height, &channels, 4);
+		glGenTextures(1, &texturetestTexture);
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, texturetestTexture);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_MIRRORED_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+		glGenerateMipmap(GL_TEXTURE_2D);
+		//texture 2
+		str = resourceDirectory + "/sky.jpg";
+		strcpy(filepath, str.c_str());
+		data = stbi_load(filepath, &width, &height, &channels, 4);
+		glGenTextures(1, &texturetestTexture2);
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, texturetestTexture2);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+		glGenerateMipmap(GL_TEXTURE_2D);
+
+		//[TWOTEXTURES]
+		//set the 2 textures to the correct samplers in the fragment shader:
+		GLuint Tex1Location = glGetUniformLocation(ptexturetest1->pid, "tex");//tex, tex2... sampler in the fragment shader
+		GLuint Tex2Location = glGetUniformLocation(ptexturetest1->pid, "tex2");
+		// Then bind the uniform samplers to texture units:
+		glUseProgram(ptexturetest1->pid);
+		glUniform1i(Tex1Location, 0);
+		glUniform1i(Tex2Location, 1);
+
+		Tex1Location = glGetUniformLocation(ptexturetestpostproc->pid, "tex");//tex, tex2... sampler in the fragment shader
+		glUseProgram(ptexturetestpostproc->pid);
+		glUniform1i(Tex1Location, 0);
+
+
+		glfwGetFramebufferSize(windowManager->getHandle(), &width, &height);
+		//RGBA8 2D texture, 24 bit depth texture, 256x256
+		glGenTextures(1, &texturetestFBOtex);
+		glBindTexture(GL_TEXTURE_2D, texturetestFBOtex);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		//NULL means reserve texture memory, but texels are undefined
+		//**** Tell OpenGL to reserve level 0
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_BGRA, GL_UNSIGNED_BYTE, NULL);
+		//You must reserve memory for other mipmaps levels as well either by making a series of calls to
+		//glTexImage2D or use glGenerateMipmapEXT(GL_TEXTURE_2D).
+		//Here, we'll use :
+		glGenerateMipmap(GL_TEXTURE_2D);
+		//make a frame buffer
+		//-------------------------
+		glGenFramebuffers(1, &texturetestfb);
+		glBindFramebuffer(GL_FRAMEBUFFER, texturetestfb);
+		//Attach 2D texture to this FBO
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texturetestFBOtex, 0);
+		//-------------------------
+		glGenRenderbuffers(1, &texturetestdepth_fb);
+		glBindRenderbuffer(GL_RENDERBUFFER, texturetestdepth_fb);
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, width, height);
+		//-------------------------
+		//Attach depth buffer to FBO
+		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, texturetestdepth_fb);
+		//-------------------------
+		//Does the GPU support current FBO configuration?
+		GLenum status;
+		status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+		switch (status)
+		{
+		case GL_FRAMEBUFFER_COMPLETE:
+			cout << "status framebuffer: good";
+			break;
+		default:
+			cout << "status framebuffer: bad!!!!!!!!!!!!!!!!!!!!!!!!!";
+		}
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	}
+
 	//**************************************************************************************************************************************************
 	void initGeom(const std::string & resourceDirectory)
 	{
 		init_land();
 		init_tunnel(resourceDirectory);
+		texturetest_initGeom();
 		//lasers:
 		glGenVertexArrays(1, &VAOLasers);
 		glBindVertexArray(VAOLasers);
@@ -1370,10 +1716,10 @@ class Application : public EventCallbacks
 		eyes->resize();
 		eyes->init();
 
-		sphere2 = make_shared<Shape>();
-		sphere2->loadMesh(resourceDirectory + "/armor2.obj");
-		sphere2->resize();
-		sphere2->init();
+		armor = make_shared<Shape>();
+		armor->loadMesh(resourceDirectory + "/armor2.obj");
+		armor->resize();
+		armor->init();
 
 		sphere = make_shared<Shape>();
 		//sphere->loadMesh(resourceDirectory + "/sky.obj");
@@ -1676,7 +2022,6 @@ class Application : public EventCallbacks
 	
 		glViewport(0, 0, width, height);
 
-
 		glm::mat4 M, V, S, T;
 
 		prog2->bind();
@@ -1791,6 +2136,20 @@ class Application : public EventCallbacks
 			}		*/
 	}
 
+	void update_audio_influence()
+	{
+		float peak_average = 0;
+		float sample_slots = 13;
+		for (int i = 0; i < sample_slots; i++)
+		{
+			peak_average += amplitude_on_frequency[i];
+		}
+		peak_average = peak_average / sample_slots;
+		//cout << "peak average: " << peak_average << endl;
+		global_music_influence = peak_average;
+		//cout << "global_music: " << global_music_influence << endl;
+	}
+
 	//*************************************
 	void aquire_fft_scaling_arrays()
 	{
@@ -1809,6 +2168,8 @@ class Application : public EventCallbacks
 		static int length = 0;
 		if (fft(amplitude_on_frequency, length))
 		{
+			//Update the global audio influence
+			update_audio_influence();
 			//put the height of the frequencies 20Hz to 20000Hz into the height of the line-vertices
 			vec3 vertices[FFT_MAXSIZE];
 
@@ -2074,7 +2435,7 @@ class Application : public EventCallbacks
 
 			M = Tcam * mycam.R * Ta * Rza * Rxa * Rya * Sa;
 			glUniformMatrix4fv(progs->getUniform("M"), 1, GL_FALSE, &M[0][0]);
-			sphere2->draw(progs, true);
+			armor->draw(progs, true);
 			progs->unbind();
 			glEnable(GL_BLEND);	
 		}
@@ -2814,6 +3175,134 @@ class Application : public EventCallbacks
 		eyes_lasers.push_back(las);
 
 	}
+
+	void texturetest_render_to_framebuffer()
+	{
+		glBindFramebuffer(GL_FRAMEBUFFER, texturetestfb);
+
+
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		double frametime = get_last_elapsed_time();
+
+		// Get current frame buffer size.
+		int width, height;
+		glfwGetFramebufferSize(windowManager->getHandle(), &width, &height);
+		float aspect = width / (float)height;
+		glViewport(0, 0, width, height);
+
+		// Clear framebuffer.
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		// Create the matrix stacks - please leave these alone for now
+
+		glm::mat4 V, M, P; //View, Model and Perspective matrix
+		V = mycam.process(frametime, MODE_TEXTURE_TEST);
+		M = glm::mat4(1);
+		// Apply orthographic projection....
+		P = glm::ortho(-1 * aspect, 1 * aspect, -1.0f, 1.0f, -2.0f, 100.0f);
+		if (width < height)
+		{
+			P = glm::ortho(-1.0f, 1.0f, -1.0f / aspect, 1.0f / aspect, -2.0f, 100.0f);
+		}
+		// ...but we overwrite it (optional) with a perspective projection.
+		P = glm::perspective((float)(3.14159 / 4.), (float)((float)width / (float)height), 0.1f, 1000.0f); //so much type casting... GLM metods are quite funny ones
+		float sangle = 3.1415926 / 2.;
+		glm::mat4 RotateXSky = glm::rotate(glm::mat4(1.0f), sangle, glm::vec3(1.0f, 0.0f, 0.0f));
+		glm::vec3 camp = -mycam.pos;
+		glm::mat4 TransSky = glm::translate(glm::mat4(1.0f), camp);
+		glm::mat4 SSky = glm::scale(glm::mat4(1.0f), glm::vec3(0.8f, 0.8f, 0.8f));
+
+		M = TransSky * RotateXSky * SSky;
+
+		// Draw the box using GLSL.
+		ptexturetestsky->bind();
+
+
+		//send the matrices to the shaders
+		glUniformMatrix4fv(ptexturetestsky->getUniform("P"), 1, GL_FALSE, &P[0][0]);
+		glUniformMatrix4fv(ptexturetestsky->getUniform("V"), 1, GL_FALSE, &V[0][0]);
+		glUniformMatrix4fv(ptexturetestsky->getUniform("M"), 1, GL_FALSE, &M[0][0]);
+		glUniform3fv(ptexturetestsky->getUniform("campos"), 1, &mycam.pos[0]);
+
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, texturetestTexture2);
+		glDisable(GL_DEPTH_TEST);
+		texturetest_skysphere->draw(ptexturetestsky, FALSE);
+		glEnable(GL_DEPTH_TEST);
+
+		ptexturetestsky->unbind();
+
+		//animation with the model matrix:
+		static float w = 0.0;
+		w += 1.0 * frametime;//rotation angle
+		float trans = 0;// sin(t) * 2;
+		glm::mat4 RotateY = glm::rotate(glm::mat4(1.0f), w, glm::vec3(0.0f, 1.0f, 0.0f));
+		float angle = -3.1415926 / 2.0;
+		glm::mat4 RotateX = glm::rotate(glm::mat4(1.0f), angle, glm::vec3(1.0f, 0.0f, 0.0f));
+		glm::mat4 TransZ = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -3 + trans));
+		glm::mat4 S = glm::scale(glm::mat4(1.0f), glm::vec3(0.8f, 0.8f, 0.8f));
+
+		M = TransZ * RotateY * RotateX * S;
+
+		// Draw the box using GLSL.
+		ptexturetest1->bind();
+
+
+		//send the matrices to the shaders
+		glUniformMatrix4fv(ptexturetest1->getUniform("P"), 1, GL_FALSE, &P[0][0]);
+		glUniformMatrix4fv(ptexturetest1->getUniform("V"), 1, GL_FALSE, &V[0][0]);
+		glUniformMatrix4fv(ptexturetest1->getUniform("M"), 1, GL_FALSE, &M[0][0]);
+		glUniform3fv(ptexturetest1->getUniform("campos"), 1, &mycam.pos[0]);
+
+		glBindVertexArray(texturetestVertexArrayID);
+		//actually draw from vertex 0, 3 vertices
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, texturetestIndexBufferIDBox);
+		//glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_SHORT, (void*)0);
+		mat4 Vi = glm::transpose(V);
+		Vi[0][3] = 0;
+		Vi[1][3] = 0;
+		Vi[2][3] = 0;
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, texturetestTexture);
+
+		M = TransZ * S * Vi;
+		glUniformMatrix4fv(ptexturetest1->getUniform("M"), 1, GL_FALSE, &M[0][0]);
+
+		glDisable(GL_DEPTH_TEST);
+		glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, (void*)0, 500);
+		glEnable(GL_DEPTH_TEST);
+		/*for (int z = 0; z < 5; z++)
+		{
+			glm::mat4 TransZ = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f+z, 0.0f, -3 - z));
+			M = TransZ * S* Vi;
+			glUniformMatrix4fv(prog->getUniform("M"), 1, GL_FALSE, &M[0][0]);
+			glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, (void*)0);
+		}*/
+		glBindVertexArray(0);
+
+		ptexturetest1->unbind();
+
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glBindTexture(GL_TEXTURE_2D, texturetestFBOtex);
+		glGenerateMipmap(GL_TEXTURE_2D);
+	}
+
+	void texturetest_render()
+	{
+		// Get current frame buffer size.
+		int width, height;
+		glfwGetFramebufferSize(windowManager->getHandle(), &width, &height);
+		glViewport(0, 0, width, height);
+		// Clear framebuffer.
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		ptexturetestpostproc->bind();
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, texturetestFBOtex);
+		glBindVertexArray(texturetestVertexArrayIDScreen);
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+		ptexturetestpostproc->unbind();
+	}
 };
 //*********************************************************************************************************
 void modechange(double frametime)
@@ -2884,12 +3373,13 @@ void modechange(double frametime)
 	}
 //******************************
 
+
+
 //********************************************************************************
 extern int running;
 int main(int argc, char** argv)
 {
 	 float weights[TEXELSIZE];
-
 	
 	for (int ii = 0; ii < TEXELSIZE; ii++)
 	{			
@@ -2914,10 +3404,6 @@ int main(int argc, char** argv)
 	windowManager->init(1280, 720);
 	windowManager->setEventCallbacks(application);
 	application->windowManager = windowManager;
-
-	// This is the code that will likely change program to program as you
-	// may need to initialize or set up different data and state
-
 	application->init(resourceDir);
 	application->initGeom(resourceDir);
 
@@ -2967,6 +3453,7 @@ int main(int argc, char** argv)
 		//sw.start();
 		#ifndef NOAUDIO
 			application->aquire_fft_scaling_arrays();
+			
 		#endif	
 		//fps[3] += sw.elapse_micro();
 	//	sw.start();
@@ -2997,6 +3484,11 @@ int main(int argc, char** argv)
 		{
 			application->prepare_to_render();
 			application->render();
+		}
+		else if (rendermode == MODE_TEXTURE_TEST)
+		{
+			application->texturetest_render_to_framebuffer();
+			application->texturetest_render();
 		}
 		else
 		{

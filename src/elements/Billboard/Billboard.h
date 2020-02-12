@@ -16,6 +16,7 @@ class Billboard
 		void draw(shared_ptr<Frames>, shared_ptr<vector<int>>, int);
 		void draw(glm::mat4 *, glm::mat4 *, glm::mat4 *, camera *);
 		void draw(Line line, mat4 *, mat4 *P, mat4 *V, camera *mycam);
+		void draw(shared_ptr<Frames>, shared_ptr<vector<Body>>, shared_ptr<vector<int>>, float music_influence);
 		static void handleTexture(char *, GLuint *, int min_mode = GL_LINEAR);
 		static void handleTexture(unsigned char*, GLuint*, int, int, int min_mode = GL_LINEAR);
 		static void handleBufferText(GLuint*, GLuint, int, int);

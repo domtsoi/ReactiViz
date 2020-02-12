@@ -22,6 +22,7 @@ public:
 	void get_color();
 	void update_bodies();
 	void draw_bodies();
+	void draw_bodies(float);
 	void init();
 private:
 	Kinect();

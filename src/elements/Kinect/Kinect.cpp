@@ -171,3 +171,8 @@ void Kinect::draw_bodies()
 {
 	board->draw(frames, bodies, body_timestamp);
 }
+
+void Kinect::draw_bodies(float music_influence)
+{
+	board->draw(frames, bodies, body_timestamp, music_influence);
+}
