@@ -172,7 +172,7 @@ void Kinect::draw_bodies()
 	board->draw(frames, bodies, body_timestamp);
 }
 
-void Kinect::draw_bodies(float music_influence)
+void Kinect::draw_bodies(float music_influence, GLuint TVtex, float kinect_depth)
 {
-	board->draw(frames, bodies, body_timestamp, music_influence);
+	board->draw(frames, bodies, body_timestamp, music_influence, TVtex, kinect_depth);
 }

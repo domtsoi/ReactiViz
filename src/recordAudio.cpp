@@ -86,7 +86,7 @@ void start_recording()
 	RecordAudioStream(&pMySink);
 }
 
-string GetDeviceName(IMMDeviceCollection *DeviceCollection, UINT DeviceIndex, LPWSTR &pdeviceId)
+string GetDeviceName(IMMDeviceCollection *DeviceCollection, UINT DeviceIndex, LPWSTR &pdeviceId, LPWSTR& temppdeviceId)
 {
 	IMMDevice *device;
 	LPWSTR deviceId;
@@ -113,6 +113,7 @@ string GetDeviceName(IMMDeviceCollection *DeviceCollection, UINT DeviceIndex, LP
 	Result = CW2A(friendlyName.pwszVal);
 	if (Result.find("Stereo Mix")==0)
 		pdeviceId = deviceId;
+	temppdeviceId = deviceId;
 	a = "#######";
 	b =CW2A(deviceId);
 	Result += a + b;
@@ -142,6 +143,8 @@ HRESULT RecordAudioStream(MyAudioSink *pMySink)
 	BOOL bDone = FALSE;
 	BYTE *pData;
 	DWORD flags;
+	string deviceName;
+
 	hr = CoInitialize(NULL);
 	IMMDeviceCollection  *pEndpoints = NULL;
 	EXIT_ON_ERROR(hr)
@@ -156,15 +159,21 @@ HRESULT RecordAudioStream(MyAudioSink *pMySink)
 	UINT deviceCount;
 	hr = pEndpoints->GetCount(&deviceCount);
 	EXIT_ON_ERROR(hr)
-		LPWSTR deviceId=0;
+	LPWSTR deviceId=0;
+	LPWSTR tempdeviceId = 0;
+	cout << endl << endl;
 	for (UINT DeviceIndex = 0; DeviceIndex < deviceCount; DeviceIndex++)
 	{
-		string deviceName = GetDeviceName(pEndpoints, DeviceIndex, deviceId);
-		cout << DeviceIndex <<": " << deviceName.c_str()<< endl;
+		deviceName = GetDeviceName(pEndpoints, DeviceIndex, deviceId, tempdeviceId);
+		cout << DeviceIndex <<": " << deviceName.c_str()<< ", " << " ID:" << tempdeviceId <<endl;
 	}
+	
+	//FIND WHERE TO SET DEFAULT AUDIO DEVICE
+	cout << "Device CHOSEN ID" << ": " << deviceId << endl;
+	
 	EXIT_ON_ERROR(hr)
-		hr = pEnumerator->GetDefaultAudioEndpoint(
-			eCapture, eConsole, &pDevice); 
+	
+	hr = pEnumerator->GetDefaultAudioEndpoint(eCapture, eConsole, &pDevice); 
 	hr = pEnumerator->GetDevice(deviceId,&pDevice);
 	EXIT_ON_ERROR(hr)
 

@@ -11,6 +11,8 @@ uniform sampler2D body4_tex;
 uniform sampler2D body5_tex;
 uniform sampler2D body6_tex;
 
+
+
 uniform int num_bodies;
 uniform int time_stamps[6];
 

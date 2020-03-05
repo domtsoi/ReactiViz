@@ -7,6 +7,7 @@ in vec3 vertex_pos;
 uniform sampler2D depth_tex;
 uniform sampler2D color_tex;
 uniform sampler2D static_tex;
+uniform sampler2D tv_tex;
 
 const int num_joints = 25;
 const int max_bodies = 6;
@@ -17,6 +18,7 @@ uniform int time_stamps[max_bodies];
 uniform int num_bodies;
 uniform float time;
 uniform float music_influence;
+uniform float kinect_depth;
 //PLAY WITH MIN THRESHHOLD VALUES TO GET BETTER BLEND (If max thresh == minthresh background == body static lvl)
 const float min_thresh = 0.01;
 const float max_thresh = 0.05;
@@ -46,46 +48,80 @@ float get_threshold(float time_stamp)
 	return min_thresh + (thresh_diff * (1.f - percent_done));
 }
 
+vec3 wrongcolor(float d)
+{
+	d = d - floor(d);
+	if(d<0.2)
+	{
+		d *=5.;
+		return vec3(1,1,1) * (1.-d) + vec3(1,0,.4) * d;
+	}
+	else if(d<0.4)
+	{
+		d-=0.2;
+		d *=5.;
+		return vec3(1,0,.4) * (1.-d) + vec3(0,.95,1)* d;
+	}
+	else if(d<0.6)
+	{
+		d-=0.4;
+		d *=5.;
+		return vec3(0,.95,1) * (1.-d) + vec3(0,1,0)* d;
+	}
+	else if(d<0.8)
+	{
+		d-=0.6;
+		d *=5.;
+		return vec3(0,1,0) * (1.-d) + vec3(1,1,0)* d;
+	}
+	else if(d<1.0)
+	{
+		d-=0.8;
+		d *=5.;
+		return vec3(1,1,0) * (1.-d) + vec3(1,1,1)* d;
+	}
+}
+
+
 void main()
 {
+	vec2 temptexcoords;
+	if (mod(time * 1000, 1) == 0)
+	{
+		temptexcoords = vec2(vertex_tex.x*2,vertex_tex.y*2 +0.5);
+	}
+	else 
+	{
+		temptexcoords = vec2(vertex_tex.x, vertex_tex.y);
+	}
+	vec4 tvcol =  texture(tv_tex, temptexcoords);
+	color = vec4(tvcol.rgb,1);
+	float t = tvcol.a;
 
 	vec4 back_color = vec4(0 + (0.05 * music_influence), 0 , 0, 1);
-	// if (music_influence == THEME1) back_color = vec4(THEME1_R, ..., 1);
-	vec3 pos = vec3(vertex_tex, texture(depth_tex, vertex_tex).r);
+	float depthcol = texture(depth_tex, temptexcoords).r;
+	float f = pow(music_influence * music_influence, 0.5);
+	depthcol += time * (0.1 * f);
 	vec2 npos = vertex_tex + vec2(time);
-	float r = rand(npos);
-	for (int i = 0; i < num_bodies; ++i)
+	float nnn = gold_noise(npos, phi) + (0.15 * music_influence);
+
+	vec3 depthcolor = wrongcolor(depthcol*5.);
+
+	vec3 resultcolor = depthcolor * (music_influence*0.4) + vec3(1-depthcol,1-depthcol,1-depthcol)*(1. - music_influence*0.4) *0.4;
+	resultcolor.r = pow(resultcolor.r,2);
+	resultcolor.g = pow(resultcolor.g,2);
+	resultcolor.b = pow(resultcolor.b,2);
+	if (depthcol < kinect_depth)
 	{
-		for (int j = 0; j < num_joints; ++j)
-		{
-			float xy_diff = length(pos.xy - bodies[(i * num_joints) + j].xy);
-			float z_diff = abs(pos.z - bodies[(i * num_joints) + j].z);
-			if (pos.z > min_z && xy_diff < xy_epsilon && z_diff < z_epsilon)
-			{
-				color = vec4(gold_noise(npos, phi) + (0.15 * music_influence),
-							 gold_noise(npos, pi) - (0.45 * music_influence),
-							 gold_noise(npos, sq2) - (0.25 * music_influence),
-													   1);
-				//color = vec4(gold_noise(npos, phi),
-							 //gold_noise(npos, pi),
-							 //gold_noise(npos, sq2),
-													   //1);
-
-				if (r > get_threshold(abs(time_stamps[i]))) color = back_color;
-				return;
-			}
-		}
+		color = vec4(resultcolor,1);
 	}
-
-	
-	//color = vec4(gold_noise(npos, phi),
-				 //gold_noise(npos, pi),
-				 //gold_noise(npos, sq2),
-										   //1);
-
-	color = vec4(1.0f - (0.3 * music_influence), 0.0f , 0.0f, 1.0f);
-	if (r > min_thresh) 
+	else
 	{
-		color = back_color;
+		color = vec4(resultcolor.r * 0.1,resultcolor.g * 0.1 ,resultcolor.b * 0.1, 0.1);
 	}
+	//color = vec4(resultcolor,1);
+	color = color * (1 - t) + tvcol * t;
+
+	color.rgb *= nnn;
+	return;
 }

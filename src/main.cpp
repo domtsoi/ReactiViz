@@ -360,7 +360,6 @@ class cityfieldelement_
 
 class Application : public EventCallbacks
 {
-
 	public:
 		bool beattrigger = false;
 		bool lasertrigger = false;
@@ -409,7 +408,8 @@ class Application : public EventCallbacks
 		//texture data
 		GLuint texturetestTexture;
 		GLuint texturetestTexture2;
-
+		GLuint TVtex;
+		float kinect_depth = 0;
 	void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
 	{
 		if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
@@ -527,11 +527,18 @@ class Application : public EventCallbacks
 			rendermode = MODE_TEXTURE_TEST;
 			mycam.reset(rendermode);
 		}
-		/*if (key == GLFW_KEY_F3)
-			{
-			rendermode = MODE_LANDSTATIC;
-			mycam.reset();
-			}*/
+		if (key == GLFW_KEY_UP && action == GLFW_RELEASE)
+		{
+			kinect_depth += 0.02;
+			cout << "UP PRESSED, kinectDepth: " << kinect_depth << endl;
+			
+		}
+		if (key == GLFW_KEY_DOWN && action == GLFW_RELEASE)
+		{
+			kinect_depth -= 0.02;
+			cout << "DOWN PRESSED, kinectDepth: " << kinect_depth << endl;
+			
+		}
 	}
 
 	void CreateCubeTexture()
@@ -671,6 +678,7 @@ class Application : public EventCallbacks
 		ptexturetest1->addUniform("V");
 		ptexturetest1->addUniform("M");
 		ptexturetest1->addUniform("campos");
+		ptexturetest1->addUniform("music_influence");
 		ptexturetest1->addAttribute("vertPos");
 		ptexturetest1->addAttribute("vertNor");
 		ptexturetest1->addAttribute("vertTex");
@@ -1063,8 +1071,10 @@ class Application : public EventCallbacks
 	void render()
 	{
 		double frametime = get_last_elapsed_time();
+		get_resolution(&width, &height);
 		float aspect = width / (float)height;
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		//Change Stuff here to edit the viewport
 		glViewport(0, 0, width, height);
 		glClearColor(.8, .8, 1, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -1072,7 +1082,7 @@ class Application : public EventCallbacks
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		if (kinect_music)
 		{
-			kinect->draw_bodies(global_music_influence);
+			kinect->draw_bodies(global_music_influence,TVtex, kinect_depth);
 		}
 		else
 		{
@@ -1545,6 +1555,20 @@ class Application : public EventCallbacks
 		glGenTextures(1, &texturetestTexture2);
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, texturetestTexture2);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+		glGenerateMipmap(GL_TEXTURE_2D);
+
+		//texture 2
+		str = resourceDirectory + "/tv.png";
+		strcpy(filepath, str.c_str());
+		data = stbi_load(filepath, &width, &height, &channels, 4);
+		glGenTextures(1, &TVtex);
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, TVtex);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -2147,6 +2171,7 @@ class Application : public EventCallbacks
 		peak_average = peak_average / sample_slots;
 		//cout << "peak average: " << peak_average << endl;
 		global_music_influence = peak_average;
+		//cout << global_music_influence << endl;
 		//cout << "global_music: " << global_music_influence << endl;
 	}
 
@@ -2273,7 +2298,6 @@ class Application : public EventCallbacks
 			Az = newAz;
 			totalperiod.z = 0;
 		}
-
 
 		vec3 wobble;
 		wobble.x = sin(totalperiod.x) * Ax;
@@ -2614,14 +2638,12 @@ class Application : public EventCallbacks
 			glDrawArrays(GL_POINTS, 0, initialized_VB_laser_count);						
 			prog_lasereyes->unbind();
 		}
-		//*********************************************
-				
+		//*********************************************			
 	}
 
 	//************************************************************************************************	
 	void render_tunnel(int width, int height, mat4 P, mat4 V, bool pilotrender, double frametime)
 	{
-
 		float mul_scale = CITYMULSCALE;
 
 		glClearColor(0.0, 0.0, 0.0, 0.0);
@@ -2768,8 +2790,6 @@ class Application : public EventCallbacks
 			glDrawElements(GL_TRIANGLES, IBtunnellasersize, GL_UNSIGNED_INT, (void*)0);
 		}
 		prog_roundlaser->unbind();
-
-
 	}
 
 			//*****************************************************************************************
@@ -2832,9 +2852,7 @@ class Application : public EventCallbacks
 		glBindTexture(GL_TEXTURE_2D, FBOgodrays);
 		glGenerateMipmap(GL_TEXTURE_2D);
 		glBindTexture(GL_TEXTURE_2D, FBObloommask);
-		glGenerateMipmap(GL_TEXTURE_2D);
-
-			
+		glGenerateMipmap(GL_TEXTURE_2D);			
 	}
 
 	//*****************************************************************************************
@@ -2845,7 +2863,6 @@ class Application : public EventCallbacks
 		//Draw the cubemap.
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, Cube_framebuffer);
 		glFramebufferRenderbuffer(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, Cube_depthbuffer);
-
 
 		glm::mat4 cubeView[6];
 		vec3 campos = mycam.pos;
@@ -2861,17 +2878,12 @@ class Application : public EventCallbacks
 
 		glm::mat4 cubeProj = glm::perspective(glm::radians(90.0f), (float)1.0f, (float) 0.5, (float)200.0);
 
-
 		mat4 T = translate(mat4(1), campos);
-
-
 
 		/*cubeView[0] = rotate(mat4(1), (float)3.1415926 * 0.5f, vec3(0, -1, 0)) * T;
 		cubeView[1] = rotate(mat4(1), -(float)3.1415926 * 0.5f, vec3(0, -1, 0)) * T;
 		cubeView[4] = rotate(mat4(1), (float)0.0, vec3(0, -1, 0)) * T;
 		cubeView[5] = rotate(mat4(1), (float)3.1415926, vec3(0, -1, 0))*T;*/
-
-
 
 		for (int i = 0; i < 6; ++i)
 		{
@@ -2892,9 +2904,7 @@ class Application : public EventCallbacks
 		if (status != GL_FRAMEBUFFER_COMPLETE)
 			printf("Status error: %08x\n", status);
 
-
 		render_scene(CUBE_TEXTURE_SIZE, CUBE_TEXTURE_SIZE, P, V, false, frametime);
-
 
 	}
 
@@ -3272,13 +3282,6 @@ class Application : public EventCallbacks
 		glDisable(GL_DEPTH_TEST);
 		glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, (void*)0, 500);
 		glEnable(GL_DEPTH_TEST);
-		/*for (int z = 0; z < 5; z++)
-		{
-			glm::mat4 TransZ = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f+z, 0.0f, -3 - z));
-			M = TransZ * S* Vi;
-			glUniformMatrix4fv(prog->getUniform("M"), 1, GL_FALSE, &M[0][0]);
-			glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, (void*)0);
-		}*/
 		glBindVertexArray(0);
 
 		ptexturetest1->unbind();
@@ -3319,58 +3322,64 @@ void modechange(double frametime)
 	totaltime_since_last_change += frametime;
 	//record mode stats:
 	if (mycam.toggleview)
-		{
+	{
 		seconds_in_helmet_mode += frametime;
 		seconds_since_last_helmet_mode = 0;
-		}
+	}
 	else
+	{
 		seconds_since_last_helmet_mode += frametime;
+	}
 	if (mycam.rot.z > 2.0)
-		{
+	{
 		seconds_in_reverse_mode += frametime;
 		seconds_since_last_reverse_mode = 0;
-		}
+	}
 	else
 		seconds_since_last_reverse_mode += frametime;
 	//consequences:
 	bool dont_helmet = false;
 	bool dont_inverse = false;
 	if (seconds_in_helmet_mode > 10.0 || rendermode == MODE_TUNNEL)
-		{
+	{
 		dont_helmet = true;
 		mycam.toggleview = false;
-		}
+	}
 	if (seconds_since_last_helmet_mode > 35)
-		{
+	{
 		seconds_in_helmet_mode = 0;
 		dont_helmet = false;
-		}
+	}
 
 	if (seconds_in_reverse_mode > 20.0)
-		{
+	{
 		dont_inverse = true;
 		mycam.rot.z = 0;
-		}
+	}
 	if (seconds_since_last_reverse_mode > 35)
-		{
+	{
 		seconds_in_reverse_mode = 0;
 		dont_inverse = false;
-		}
+	}
 	//chance for a change
 	if (totaltime_since_last_change > CHANGEMODETIME)
-		{
+	{
 		float r = frand();
 		if (r < 0.1) mycam.toggle();
 		else if (r > 0.9)
-			{
+		{
 			if (mycam.rot.z < 1)
+			{
 				mycam.rot.z = 3.1415926;
+			}
 			else
+			{
 				mycam.rot.z = 0;
 			}
-		totaltime_since_last_change = 0;
 		}
+		totaltime_since_last_change = 0;
 	}
+}
 //******************************
 
 

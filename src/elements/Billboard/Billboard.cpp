@@ -14,17 +14,17 @@ Billboard::Billboard()
 {
 	string resource_dir = "../resources/";
 	char* uniforms[] = {
-		"bodies", "num_bodies", "time_stamps", "time", "music_influence"
+		"bodies", "num_bodies", "time_stamps", "time", "music_influence", "kinect_depth"
 	};
 	char* attributes[] = {
 		"vertPos", "vertTex"
 	};
-	prog = initProg(resource_dir + "body_vertex.glsl", resource_dir + "body_frag.glsl", uniforms, attributes, 5, 2);
+	prog = initProg(resource_dir + "body_vertex.glsl", resource_dir + "body_frag.glsl", uniforms, attributes, 6, 2);
 	glUseProgram(prog->pid);
 	
-	char* texUniforms[] = { "depth_tex", "color_tex", "static_tex" };
+	char* texUniforms[] = { "depth_tex", "color_tex", "static_tex" , "tv_tex" };
 
-	for (int i = 0; i < 3; ++i)
+	for (int i = 0; i < 4; ++i)
 	{
 		GLuint TexLocation = glGetUniformLocation(prog->pid, texUniforms[i]);
 		glUniform1i(TexLocation, i);
@@ -230,7 +230,7 @@ void Billboard::draw(shared_ptr<Frames> frames, shared_ptr<vector<Body>> bodies,
 	prog->unbind();
 }
 
-void Billboard::draw(shared_ptr<Frames> frames, shared_ptr<vector<Body>> bodies, shared_ptr<vector<int>> time_stamps, float music_influence)
+void Billboard::draw(shared_ptr<Frames> frames, shared_ptr<vector<Body>> bodies, shared_ptr<vector<int>> time_stamps, float music_influence, GLuint TVtex, float kinect_depth)
 {
 	prog->bind();
 	glBindVertexArray(VAID);
@@ -242,12 +242,15 @@ void Billboard::draw(shared_ptr<Frames> frames, shared_ptr<vector<Body>> bodies,
 		glActiveTexture(GL_TEXTURE0 + i);
 		glBindTexture(GL_TEXTURE_2D, frames->get_text_id(i));
 	}
+	glActiveTexture(GL_TEXTURE0 + 3);
+	glBindTexture(GL_TEXTURE_2D, TVtex);
 
 	glUniform4fv(prog->getUniform("bodies"), NUM_JOINTS * bodies->size(), (GLfloat*)bodies->data());
 	glUniform1iv(prog->getUniform("time_stamps"), bodies->size(), time_stamps->data());
 	glUniform1i(prog->getUniform("num_bodies"), bodies->size());
 	glUniform1f(prog->getUniform("time"), time);
 	glUniform1f(prog->getUniform("music_influence"), music_influence);
+	glUniform1f(prog->getUniform("kinect_depth"), kinect_depth);
 
 	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, (void*)0);
 	glBindVertexArray(0);
