@@ -43,6 +43,7 @@ void Kinect::init()
 	depth_framesource->get_FrameDescription(&depth_descr);
 	depth_descr->get_Width(&d_width);
 	depth_descr->get_Height(&d_height);
+	std::cout << "Depth width: " << d_width << " Depth height: " << d_height << endl;
 	depth_framesource->Release();
 
 	// init body frame reader

@@ -14,7 +14,7 @@
 using namespace glm;
 using namespace std;
 
-enum rendermodes { MODE_CITYFWD, MODE_CITYSTATIC, MODE_LANDFWD, MODE_LANDSTATIC,MODE_UNKNOWN, MODE_TUNNEL, MODE_BODYSENSE_STATIC, MODE_TEXTURE_TEST};
+enum rendermodes { MODE_CITYFWD, MODE_CITYSTATIC, MODE_LANDFWD, MODE_LANDSTATIC,MODE_UNKNOWN, MODE_TUNNEL, MODE_BODYSENSE_STATIC, MODE_TEXTURE_TEST, MODE_DEPTH_PIXEL};
 
 
 class camera
@@ -88,7 +88,7 @@ public:
 
 	glm::mat4 process(float frametime, rendermodes rendermode)
 	{
-		float speed = 0;
+		float speed = 0.01;
 		switch (rendermode)
 		{
 			default:

@@ -48,38 +48,74 @@ float get_threshold(float time_stamp)
 	return min_thresh + (thresh_diff * (1.f - percent_done));
 }
 
-vec3 wrongcolor(float d)
+vec3 wrongcolor(float curD, float dLimit)
 {
-	d = d - floor(d);
-	if(d<0.2)
+	float range1 = dLimit *.2;
+	float range2 = dLimit *.4;
+	float range3 = dLimit *.6;
+	float range4 = dLimit *.8;
+	float range5 = dLimit;
+	curD = curD - floor(curD);
+	
+	if (curD < range1)
 	{
-		d *=5.;
-		return vec3(1,1,1) * (1.-d) + vec3(1,0,.4) * d;
+		curD *= 5.;
+		return vec3(1,1,1) * (1. - curD) + vec3(1, 0, .4) * curD;
 	}
-	else if(d<0.4)
+	else if (curD < range2)
 	{
-		d-=0.2;
-		d *=5.;
-		return vec3(1,0,.4) * (1.-d) + vec3(0,.95,1)* d;
+		curD -= range1;
+		curD *= 5. ;
+		return vec3(1,0,.4) * (1. - curD) + vec3(0, .95, 1) * curD;
 	}
-	else if(d<0.6)
+	else if (curD < range3)
 	{
-		d-=0.4;
-		d *=5.;
-		return vec3(0,.95,1) * (1.-d) + vec3(0,1,0)* d;
+		curD -= range2;
+		curD *= 5.;
+		return vec3(0,.95,1) * (1.  - curD) + vec3(0, 1, 0) * curD;
 	}
-	else if(d<0.8)
+	else if (curD < range4)
 	{
-		d-=0.6;
-		d *=5.;
-		return vec3(0,1,0) * (1.-d) + vec3(1,1,0)* d;
+		curD -= range3;
+		curD *= 5.;
+		return vec3(0,1,0) * (1. - curD) + vec3(1, 1, 0) * curD;
 	}
-	else if(d<1.0)
+	else if (curD < range5)
 	{
-		d-=0.8;
-		d *=5.;
-		return vec3(1,1,0) * (1.-d) + vec3(1,1,1)* d;
+		curD -= range4;
+		curD *=5.;
+		return vec3(1,1,0) * (1. - curD) + vec3(1, 1, 1) * curD;
 	}
+
+	/*if(curD < 0.2)
+	{
+		curD * = 5.;
+		return vec3(1,1,1) * (1. - curD) + vec3(1, 0, .4) * curD;
+	}
+	else if(curD < 0.4)
+	{
+		curD -= 0.2;
+		curD *= 5. ;
+		return vec3(1,0,.4) * (1. - curD) + vec3(0, .95, 1) * curD;
+	}
+	else if(curD < 0.6)
+	{
+		curD -= 0.4;
+		curD *= 5.;
+		return vec3(0,.95,1) * (1.  - curD) + vec3(0, 1, 0) * curD;
+	}
+	else if(curD < 0.8)
+	{
+		curD -= 0.6;
+		curD *= 5.;
+		return vec3(0,1,0) * (1. - curD) + vec3(1, 1, 0) * curD;
+	}
+	else if(curD < 1.0)
+	{
+		curD -= 0.8;
+		curD *=5.;
+		return vec3(1,1,0) * (1. - curD) + vec3(1, 1, 1) * curD;
+	}*/
 }
 
 
@@ -103,9 +139,10 @@ void main()
 	float f = pow(music_influence * music_influence, 0.5);
 	depthcol += time * (0.1 * f);
 	vec2 npos = vertex_tex + vec2(time);
-	float nnn = gold_noise(npos, phi) + (0.15 * music_influence);
+	//add functionality to change phi and npos
+	float nnn = gold_noise(npos - 1, phi + .43) + (0.15 * music_influence * music_influence);
 
-	vec3 depthcolor = wrongcolor(depthcol*5.);
+	vec3 depthcolor = wrongcolor(depthcol*5., kinect_depth);
 
 	vec3 resultcolor = depthcolor * (music_influence*0.4) + vec3(1-depthcol,1-depthcol,1-depthcol)*(1. - music_influence*0.4) *0.4;
 	resultcolor.r = pow(resultcolor.r,2);
@@ -117,11 +154,12 @@ void main()
 	}
 	else
 	{
-		color = vec4(resultcolor.r * 0.1,resultcolor.g * 0.1 ,resultcolor.b * 0.1, 0.1);
+		color = vec4(resultcolor.r * 0.1, resultcolor.g * 0.1, resultcolor.b * 0.1, 1);
 	}
 	//color = vec4(resultcolor,1);
+	color.rgb *= nnn;
 	color = color * (1 - t) + tvcol * t;
 
-	color.rgb *= nnn;
+	
 	return;
 }

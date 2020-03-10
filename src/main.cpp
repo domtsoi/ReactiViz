@@ -21,6 +21,7 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <thread>
+#include <windows.h>
 
 #include "recordAudio.h"
 #include "kiss_fft.h"
@@ -29,6 +30,15 @@
 #include "necessary_includes.h"
 #include "elements/Kinect/Kinect.h"
 #include "elements/Frames/Frames.h"
+
+//DMX Stuff
+
+#include "stdafx.h"
+#include "RGBxx.h"
+#include "OpenDMX.h"
+#include "DMXLight.h"
+#include "lightGroup.h"
+
 
 #define M_PI          3.141592653589793238462643383279502884L /* pi */
 
@@ -104,7 +114,7 @@ class StopWatchMicro_
 		}
 };
 
-rendermodes rendermode = MODE_TUNNEL;
+rendermodes rendermode = MODE_BODYSENSE_STATIC;
 camera mycam;
 
 #define MAXLASERS 10000
@@ -358,58 +368,162 @@ class cityfieldelement_
 	public: float height = 0; bool laseractive = false;
 };
 
+//Compute shader data structure for storing the input/output data
+#define ssbo_width 512
+#define ssbo_height 424
+
+class ssbo_data
+{
+public:
+	vec4 positions_grid[ssbo_width][ssbo_height];
+};
+
 class Application : public EventCallbacks
 {
-	public:
-		bool beattrigger = false;
-		bool lasertrigger = false;
-		bool kinect_music = false;
-		int initialized_VB_laser_count = 0;
-		float amplitude_on_frequency[FFT_MAXSIZE];
-		float amplitude_on_frequency_10steps[10];
-		float global_music_influence = 0;
+public:
+	bool beattrigger = false;
+	bool lasertrigger = false;
+	bool kinect_music = true;
+	int initialized_VB_laser_count = 0;
+	float amplitude_on_frequency[FFT_MAXSIZE];
+	float amplitude_on_frequency_10steps[10];
+	float global_music_influence = 0;
 
-		float z_schwenk = 0;
-		mat4 M_wobble = mat4(1), M_facetrinity = mat4(1);
+	float z_schwenk = 0;
+	mat4 M_wobble = mat4(1), M_facetrinity = mat4(1);
 
-		WindowManager* windowManager = nullptr;
+	WindowManager* windowManager = nullptr;
 
-		// Our shader program
-		std::shared_ptr<Program> prog, progs, prog2, progsky, progg, prog_laser, prog_blur, progland, progland2, prog_bloom, progspheres, progspheres_tunnel, prog_face, prog_roundlaser, prog_lasereyes, progtunnel2, progtunnel, prog_tv;
-		std::shared_ptr<Kinect> kinect = make_shared<Kinect>(NUM_BODIES, WIDTH, HEIGHT); 
-		bool toogle_view = false;
-		// Shape to be used (from obj file)
-		shared_ptr<Shape> shape, sphere, armor,rects, sphere_land, sphere_tunnel, face,eyes, tv;
-		cityfieldelement_ cityfield[CITYSLOTS * 2 + 1][CITYSLOTS * 2 + 1];
-		//camera
+	// Our shader program
+	std::shared_ptr<Program> prog, progs, prog2, progsky, progg, prog_laser, prog_blur, progland, progland2, prog_bloom, progspheres, progspheres_tunnel, prog_face, prog_roundlaser, prog_lasereyes, progtunnel2, progtunnel, prog_tv, compute_prog;
+	std::shared_ptr<Kinect> kinect = make_shared<Kinect>(NUM_BODIES, WIDTH, HEIGHT); 
+	bool toogle_view = false;
+	// Shape to be used (from obj file)
+	shared_ptr<Shape> shape, sphere, armor,rects, sphere_land, sphere_tunnel, face,eyes, tv;
+	cityfieldelement_ cityfield[CITYSLOTS * 2 + 1][CITYSLOTS * 2 + 1];
+	//camera
 
 
-		//texture for sim
-		GLuint TextureEarth, TexNoise, FBObloommask, TexGod, TextureSky, TextureLandBG, TextureLandBGgod, TexLaser, g_cubeTexture, TexSuitMask, TexSuit, TexLensdirt, TexLaserMask, TexTV;
-		GLuint TextureF[6], FBOcolor, fb, FBO_blur, depth_rb, depth_blur , FBOviewpos, FBOworldnormal, FBOworldpos, FBOgodrays, FBOcolor_no_ssaa[2], FBOcolor_blurmap, FBOcolor_bloommap,FBOtv;
-		GLuint Cube_framebuffer, Cube_depthbuffer, VBLasersPos, VBLasersCol, VAOLasers,VAOtunnellaser, VAOland, IBland, IBlandfull, VBLasersDir, VAOtunnel, IBtunnel, IBtunnelfull,IBtunnellaser;
-		GLuint IBlandsize, IBtunnelsize, IBlandfullsize, IBtunnelfullsize, TexAudio, IBtunnellasersize, TexTunnelLaser, VB_roundlaser_frequ;
-		GLuint VertexArrayIDBox, VertexBufferIDBox, VertexBufferTex;
+	//texture for sim
+	GLuint TextureEarth, TexNoise, FBObloommask, TexGod, TextureSky, TextureLandBG, TextureLandBGgod, TexLaser, g_cubeTexture, TexSuitMask, TexSuit, TexLensdirt, TexLaserMask, TexTV;
+	GLuint TextureF[6], FBOcolor, fb, FBO_blur, depth_rb, depth_blur , FBOviewpos, FBOworldnormal, FBOworldpos, FBOgodrays, FBOcolor_no_ssaa[2], FBOcolor_blurmap, FBOcolor_bloommap,FBOtv;
+	GLuint Cube_framebuffer, Cube_depthbuffer, VBLasersPos, VBLasersCol, VAOLasers,VAOtunnellaser, VAOland, IBland, IBlandfull, VBLasersDir, VAOtunnel, IBtunnel, IBtunnelfull,IBtunnellaser;
+	GLuint IBlandsize, IBtunnelsize, IBlandfullsize, IBtunnelfullsize, TexAudio, IBtunnellasersize, TexTunnelLaser, VB_roundlaser_frequ;
+	GLuint VertexArrayIDBox, VertexBufferIDBox, VertexBufferTex;
 
-		// Contains vertex information for OpenGL
-		GLuint VertexArrayID;
+	// Contains vertex information for OpenGL
+	GLuint VertexArrayID;
 
-		// Data necessary to give our triangle to OpenGL
-		GLuint VertexBufferID;
+	// Data necessary to give our triangle to OpenGL
+	GLuint VertexBufferID;
 
-		//texturetest stuff
-		shared_ptr<Shape> texturetest_skysphere;
-		// Our shader program
-		std::shared_ptr<Program> ptexturetest1, ptexturetestsky, ptexturetestpostproc;
-		GLuint texturetestVertexArrayID, texturetestVertexArrayIDScreen;
-		GLuint texturetestVertexBufferID, texturetestVertexBufferTexScreen, texturetestVertexBufferIDScreen, texturetestVertexNormDBox, texturetestVertexTexBox, texturetestIndexBufferIDBox, texturetestInstanceBuffer;
-		//framebufferstuff
-		GLuint texturetestfb, texturetestdepth_fb, texturetestFBOtex; //Look at FBOtex
-		//texture data
-		GLuint texturetestTexture;
-		GLuint texturetestTexture2;
-		GLuint TVtex;
-		float kinect_depth = 0;
+	//texturetest stuff
+	shared_ptr<Shape> texturetest_skysphere;
+	// Our shader program
+	std::shared_ptr<Program> ptexturetest1, ptexturetestsky, ptexturetestpostproc;
+	GLuint texturetestVertexArrayID, texturetestVertexArrayIDScreen;
+	GLuint texturetestVertexBufferID, texturetestVertexBufferTexScreen, texturetestVertexBufferIDScreen, texturetestVertexNormDBox, texturetestVertexTexBox, texturetestIndexBufferIDBox, texturetestInstanceBuffer;
+	//framebufferstuff
+	GLuint texturetestfb, texturetestdepth_fb, texturetestFBOtex; //Look at FBOtex
+	
+	//texture data
+	GLuint texturetestTexture;
+	GLuint texturetestTexture2;
+	GLuint TVtex;
+	float kinect_depth = 0;
+
+
+	//compute shader data types
+	ssbo_data ssbo_CPUMEM;
+	GLuint ssbo_GPU_id;
+	GLuint computeProgram;
+	GLuint atomicsBuffer;
+
+	void init_atomic()
+	{
+		glGenBuffers(1, &atomicsBuffer);
+		// bind the buffer and define its initial storage capacity
+		glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, atomicsBuffer);
+		glBufferData(GL_ATOMIC_COUNTER_BUFFER, sizeof(GLuint) * 1, NULL, GL_DYNAMIC_DRAW);
+		// unbind the buffer 
+		glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, 0);
+	}
+
+	void reset_atomic()
+	{
+		GLuint* userCounters;
+		glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, atomicsBuffer);
+		// map the buffer, userCounters will point to the buffers data
+		userCounters = (GLuint*)glMapBufferRange(GL_ATOMIC_COUNTER_BUFFER,
+			0,
+			sizeof(GLuint),
+			GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT | GL_MAP_UNSYNCHRONIZED_BIT
+		);
+		// set the memory to zeros, resetting the values in the buffer
+		memset(userCounters, 0, sizeof(GLuint));
+		// unmap the buffer
+		glUnmapBuffer(GL_ATOMIC_COUNTER_BUFFER);
+	}
+
+	void read_atomic()
+	{
+		GLuint* userCounters;
+		glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, atomicsBuffer);
+		// again we map the buffer to userCounters, but this time for read-only access
+		userCounters = (GLuint*)glMapBufferRange(GL_ATOMIC_COUNTER_BUFFER,
+			0,
+			sizeof(GLuint),
+			GL_MAP_READ_BIT
+		);
+		// copy the values to other variables because...
+		//cout << endl << *userCounters << endl;
+		// ... as soon as we unmap the buffer
+		// the pointer userCounters becomes invalid.
+		glUnmapBuffer(GL_ATOMIC_COUNTER_BUFFER);
+	}
+
+	void create_SSBO() 
+	{
+		cout << endl << endl << "BUFFER BEFORE COMPUTE SHADER" << endl << endl;
+
+		for (int i = 0; i < ssbo_width; i++) 
+		{
+			for (int j = 0; j < ssbo_height; j++)
+			{
+				ssbo_CPUMEM.positions_grid[i][j] = vec4(float(i), float(j), 0, 0);
+			}
+		}
+
+		for (int i = 0; i < ssbo_width; i++)
+		{
+			cout << "current(" << i << "): " << ssbo_CPUMEM.positions_grid[i][0].x << ", " << ssbo_CPUMEM.positions_grid[i][0].y << ", " << ssbo_CPUMEM.positions_grid[i][0].z << ", " << ssbo_CPUMEM.positions_grid[i][0].w << " ";
+		}
+
+		glGenBuffers(1, &ssbo_GPU_id);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo_GPU_id);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(ssbo_data), &ssbo_CPUMEM, GL_DYNAMIC_DRAW);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ssbo_GPU_id);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0); // unbind
+	}
+
+	void get_SSBO_back() 
+	{
+		// Get SSBO back
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo_GPU_id);
+		GLvoid* p = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+		int siz = sizeof(ssbo_data);
+		memcpy(&ssbo_CPUMEM, p, siz);
+		glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+
+		cout << endl << endl << "BUFFER AFTER COMPUTE SHADER" << endl << endl;
+		cout << "[0][0]: " << ssbo_CPUMEM.positions_grid[0][0].x << ", " << ssbo_CPUMEM.positions_grid[0][0].y << ", " << ssbo_CPUMEM.positions_grid[0][0].z << ", " << ssbo_CPUMEM.positions_grid[0][0].w << " ";
+		/*for (int i = 0; i < ssbo_width; i++)
+		{
+			cout << "current(" << i << "): " << ssbo_CPUMEM.positions_grid[i][0].x << ", " << ssbo_CPUMEM.positions_grid[i][0].y << ", " << ssbo_CPUMEM.positions_grid[i][0].z << ", " << ssbo_CPUMEM.positions_grid[i][0].w << " ";
+		}*/
+	}
+
+
 	void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
 	{
 		if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
@@ -527,6 +641,11 @@ class Application : public EventCallbacks
 			rendermode = MODE_TEXTURE_TEST;
 			mycam.reset(rendermode);
 		}
+		if (key == GLFW_KEY_F7)
+		{
+			rendermode = MODE_DEPTH_PIXEL;
+			mycam.reset(rendermode);
+		}
 		if (key == GLFW_KEY_UP && action == GLFW_RELEASE)
 		{
 			kinect_depth += 0.02;
@@ -536,8 +655,17 @@ class Application : public EventCallbacks
 		if (key == GLFW_KEY_DOWN && action == GLFW_RELEASE)
 		{
 			kinect_depth -= 0.02;
-			cout << "DOWN PRESSED, kinectDepth: " << kinect_depth << endl;
-			
+			cout << "DOWN PRESSED, kinectDepth: " << kinect_depth << endl;	
+		}
+		if (key == GLFW_KEY_LEFT && action == GLFW_RELEASE)
+		{
+			kinect_depth = 0;
+			cout << "LEFT, kinectDepth: " << kinect_depth << endl;
+		}
+		if (key == GLFW_KEY_RIGHT && action == GLFW_RELEASE)
+		{
+			kinect_depth += 1;
+			cout << "RIGHT, kinectDepth: " << kinect_depth << endl;
 		}
 	}
 
@@ -1059,6 +1187,32 @@ class Application : public EventCallbacks
 		prog_tv->addAttribute("vertNor");
 		prog_tv->addAttribute("vertTex");
 		prog_tv->addAttribute("InstancePos");
+
+		//LOAD THE COMPUTE SHADER
+		std::string ShaderString = readFileAsString(resourceDirectory + "/depth_compute.glsl");
+		const char* shader = ShaderString.c_str();
+		GLuint computeShader = glCreateShader(GL_COMPUTE_SHADER);
+		glShaderSource(computeShader, 1, &shader, nullptr);
+
+		GLint rc;
+		CHECKED_GL_CALL(glCompileShader(computeShader));
+		CHECKED_GL_CALL(glGetShaderiv(computeShader, GL_COMPILE_STATUS, &rc));
+		if (!rc)	//error compiling the shader file
+		{
+			GLSL::printShaderInfoLog(computeShader);
+			std::cout << "Error compiling compute shader " << std::endl;
+			exit(1);
+		}
+
+		computeProgram = glCreateProgram();
+		glAttachShader(computeProgram, computeShader);
+		glLinkProgram(computeProgram);
+		glUseProgram(computeProgram);
+
+		GLuint block_index = 0;
+		block_index = glGetProgramResourceIndex(computeProgram, GL_SHADER_STORAGE_BLOCK, "shader_data");
+		GLuint ssbo_binding_point_index = 2;
+		glShaderStorageBlockBinding(computeProgram, block_index, ssbo_binding_point_index);
 }
 
 	void prepare_to_render()
@@ -2015,7 +2169,24 @@ class Application : public EventCallbacks
 		}
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+		create_SSBO();
+	}
 
+	void compute()
+	{
+		GLuint block_index = 0;
+		block_index = glGetProgramResourceIndex(computeProgram, GL_SHADER_STORAGE_BLOCK, "shader_data");
+		GLuint ssbo_binding_point_index = 0;
+		glShaderStorageBlockBinding(computeProgram, block_index, ssbo_binding_point_index);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ssbo_GPU_id);
+		glUseProgram(computeProgram);
+		//activate atomic counter
+		glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, atomicsBuffer);
+		glBindBufferBase(GL_ATOMIC_COUNTER_BUFFER, 0, atomicsBuffer);
+
+		glDispatchCompute((GLuint)2, (GLuint)1, 1);				//start compute shader
+		//glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0);
 	}
 
 	//*************************************
@@ -3306,7 +3477,234 @@ class Application : public EventCallbacks
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 		ptexturetestpostproc->unbind();
 	}
+
+	//bool loadDLL(HINSTANCE& dllHandle) {
+	//	//absolute path filename of DLL **CHANGE HERE**
+	//	wchar_t* file = L"C:\\Users\\dtsoi\\Desktop\\dtsoi\\ReactiViz1.0PC\\musicvizv2\\src\\ftd2xx.dll";
+	//	
+	//	//try to load DLL
+	//	dllHandle = LoadLibrary(file);
+
+	//	if (NULL == dllHandle) {
+	//		std::cout << "Could not load the dynamic library" << std::endl;
+	//		return true;
+	//	}
+	//	else return false; //success
+	//}
+
+	//Initialize DMX stuff, returns false if no error and true if there is one
+	//bool initDMX()
+	//{
+	//	DWORD milliseconds = 25; //suggested interval for DMX
+
+	//	bool isVerbose = false; //set to true for logging DMX status to console for debugging purposes
+	//	OpenDMX myOpenDMX = OpenDMX::OpenDMX(isVerbose);
+
+	//	HINSTANCE dllHandle_ = NULL;
+	//	bool failure = loadDLL(dllHandle_);
+
+	//	if (!failure) {
+	//		myOpenDMX.dllHandle = dllHandle_;
+	//		failure = myOpenDMX.start();
+
+	//		if (!failure) { //if we successfully started DMX communication.
+
+	//			bool failure = myOpenDMX.initOpenDMX();
+
+	//			if (failure) {
+	//				return true;
+	//			}
+
+	//			//---------
+	//			//make a light. RGBW example (Coidak)
+	//			//---------
+	//			int light1_startIDX = 1; //program this number with buttons on the light - the DMX light address 
+
+	//			//this information comes from the help booklet for your light, describing the DMX channels used by the light. 
+	//			int light1_numChannels = 8;
+	//			int light1_numColors = 4;  //RGBW
+	//			bool light1_has_master_dimming = true;
+	//			bool light1_has_amber_channel = false;
+	//			int light1_master_dimming_channel = 4;
+	//			int light1_red_dimming_channel = 5;
+	//			int light1_green_dimming_channel = 6;
+	//			int light1_blue_dimming_channel = 7;
+	//			int light1_white_dimming_channel = 8;
+
+	//			//constructor and initialization
+	//			DMXLight myRGBWLight = DMXLight::DMXLight("RGBW Coidak", light1_startIDX, light1_numColors, light1_numChannels);
+	//			myRGBWLight.setRChannel(light1_red_dimming_channel);
+	//			myRGBWLight.setGChannel(light1_green_dimming_channel);
+	//			myRGBWLight.setBChannel(light1_blue_dimming_channel);
+	//			myRGBWLight.setWChannel(light1_white_dimming_channel);
+	//			myRGBWLight.setHasDimmingChannel(light1_has_master_dimming);
+	//			myRGBWLight.setDimmingChannel(light1_master_dimming_channel);
+	//			myRGBWLight.setHasAmberChannel(light1_has_amber_channel);
+	//			if (!myRGBWLight.lightCorrectlyInitialized()) {
+	//				system("pause");
+	//				return true;
+	//			}
+
+	//			//---------
+	//			//make a light. RGBAW example (Blizzard hotbox)
+	//			//---------
+	//			int light2_startIDX = 9; //program this number with buttons on the light - the DMX light address 
+
+	//			//this information comes from the help booklet for your light, describing the DMX channels used by the light. 
+	//			int light2_numChannels = 5;
+	//			int light2_numColors = 5;
+	//			bool light2_has_master_dimming = false;
+	//			int light2_red_dimming_channel = 1;
+	//			int light2_green_dimming_channel = 2;
+	//			int light2_blue_dimming_channel = 3;
+	//			int light2_amber_dimming_channel = 4;
+	//			int light2_white_dimming_channel = 5;
+
+	//			//constructor and initialization
+	//			DMXLight myRGBAWLight = DMXLight::DMXLight("RGBAW Blizzard Hotbox", light2_startIDX, light2_numColors, light2_numChannels);
+	//			myRGBAWLight.setRChannel(light2_red_dimming_channel);
+	//			myRGBAWLight.setGChannel(light2_green_dimming_channel);
+	//			myRGBAWLight.setBChannel(light2_blue_dimming_channel);
+	//			myRGBAWLight.setAChannel(light2_amber_dimming_channel);
+	//			myRGBAWLight.setWChannel(light2_white_dimming_channel);
+	//			myRGBAWLight.setHasDimmingChannel(light2_has_master_dimming);
+	//			if (!myRGBAWLight.lightCorrectlyInitialized()) {
+	//				system("pause");
+	//				return true;
+	//			}
+
+	//			
+	//			lightGroup myLights = lightGroup::lightGroup();
+	//			myLights.addLight(myRGBWLight);
+	//			myLights.addLight(myRGBAWLight);
+
+	//			
+
+	//			//command line IO
+	//			int lightIDXinput;
+	//			bool outerDoContinue = true;
+	//			while (outerDoContinue) {
+	//				std::cout << "Enter a light. Options are: " << std::endl;
+	//				std::cout << "all lights (0), ";
+	//				std::cout << "light1 only (1), ";
+	//				std::cout << "light2 only (2) ";
+	//				std::cout << "QUIT (-1)" << std::endl;
+	//				std::cin >> lightIDXinput;
+
+	//				switch (lightIDXinput) {
+	//				case 0: {
+	//					int input;
+	//					bool doContinue = true;
+	//					while (doContinue) {
+	//						std::cout << "Enter a lighting command. Options are:" << std::endl;
+	//						std::cout << "all colors ramp down (1), ";
+	//						std::cout << "all red on (2), ";
+	//						std::cout << "all green on (3), ";
+	//						std::cout << "all blue on (4), ";
+	//						std::cout << "all amber on (5), ";
+	//						std::cout << "all white on (6), ";
+	//						std::cout << "random pattern (7), ";
+	//						std::cout << "rainbow cross dissolve (8), ";
+	//						std::cout << "quit (0)." << std::endl;
+	//						std::cin >> input;
+
+	//						switch (input) {
+	//						case 1: myLights.allColorsRampDown(myOpenDMX, 1, milliseconds); break;
+	//						case 2: myLights.allOnSingleColor(myOpenDMX, "r", 1, milliseconds); break;
+	//						case 3: myLights.allOnSingleColor(myOpenDMX, "g", 1, milliseconds); break;
+	//						case 4: myLights.allOnSingleColor(myOpenDMX, "b", 1, milliseconds); break;
+	//						case 5:	myLights.allOnSingleColor(myOpenDMX, "a", 1, milliseconds); break;
+	//						case 6: myLights.allOnSingleColor(myOpenDMX, "w", 1, milliseconds); break;
+	//						case 7: myLights.randomPattern(myOpenDMX, 1, milliseconds); break;
+	//						case 8: myLights.rainbowCrossDissolve(myOpenDMX, 1, milliseconds); break;
+	//						case 0: doContinue = false; break;
+	//						default: std::cout << "Invalid argument. please select again." << std::endl;
+	//						}
+	//					} //end while doCont	
+	//					break;
+	//				}
+	//				case 1: {
+	//					int input;
+	//					bool doContinue = true;
+	//					while (doContinue) {
+	//						std::cout << "Enter a lighting command. Options are:" << std::endl;
+	//						std::cout << "all colors ramp down (1), ";
+	//						std::cout << "all red on (2), ";
+	//						std::cout << "all green on (3), ";
+	//						std::cout << "all blue on (4), ";
+	//						std::cout << "all amber on (5), ";
+	//						std::cout << "all white on (6), ";
+	//						std::cout << "random pattern (7), ";
+	//						std::cout << "rainbow cross dissolve (8), ";
+	//						std::cout << "quit (0)." << std::endl;
+	//						std::cin >> input;
+
+	//						switch (input) {
+	//						case 1: myRGBWLight.allColorsRampDown(myOpenDMX, 1, milliseconds); break;
+	//						case 2: myRGBWLight.allRedOn(myOpenDMX, 1, milliseconds); break;
+	//						case 3: myRGBWLight.allGreenOn(myOpenDMX, 1, milliseconds); break;
+	//						case 4: myRGBWLight.allBlueOn(myOpenDMX, 1, milliseconds); break;
+	//						case 5: myRGBWLight.allAmberOn(myOpenDMX, 1, milliseconds); break;
+	//						case 6: myRGBWLight.allWhiteOn(myOpenDMX, 1, milliseconds); break;
+	//						case 7: myRGBWLight.randomPattern(myOpenDMX, 1, milliseconds); break;
+	//						case 8: myRGBWLight.rainbowCrossDissolve(myOpenDMX, 1, milliseconds); break;
+	//						case 0: doContinue = false; break;
+	//						default: std::cout << "Invalid argument. please select again." << std::endl;
+	//						}
+	//					} //end while doCont	
+	//					break;
+	//				}
+	//				case 2: {
+	//					int input;
+	//					bool doContinue = true;
+	//					while (doContinue) {
+	//						std::cout << "Enter a lighting command. Options are:" << std::endl;
+	//						std::cout << "all colors ramp down (1), ";
+	//						std::cout << "all red on (2), ";
+	//						std::cout << "all green on (3), ";
+	//						std::cout << "all blue on (4), ";
+	//						std::cout << "all amber on (5), ";
+	//						std::cout << "all white on (6), ";
+	//						std::cout << "random pattern (7), ";
+	//						std::cout << "rainbow cross dissolve (8), ";
+	//						std::cout << "quit (0)." << std::endl;
+	//						std::cin >> input;
+
+	//						switch (input) {
+	//						case 1: myRGBAWLight.allColorsRampDown(myOpenDMX, 1, milliseconds); break;
+	//						case 2: myRGBAWLight.allRedOn(myOpenDMX, 1, milliseconds); break;
+	//						case 3: myRGBAWLight.allGreenOn(myOpenDMX, 1, milliseconds); break;
+	//						case 4: myRGBAWLight.allBlueOn(myOpenDMX, 1, milliseconds); break;
+	//						case 5: myRGBAWLight.allAmberOn(myOpenDMX, 1, milliseconds); break;
+	//						case 6: myRGBAWLight.allWhiteOn(myOpenDMX, 1, milliseconds); break;
+	//						case 7: myRGBAWLight.randomPattern(myOpenDMX, 1, milliseconds); break;
+	//						case 8: myRGBAWLight.rainbowCrossDissolve(myOpenDMX, 1, milliseconds); break;
+	//						case 0: doContinue = false; break;
+	//						default: std::cout << "Invalid argument. please select again." << std::endl;
+	//						}
+	//					} //end while doCont	
+	//					break;
+	//				}
+	//				case -1: outerDoContinue = false; break;
+	//				default: std::cout << "Invalid argument. please select again." << std::endl;
+
+	//				}
+	//			}
+	//		} //end if 
+	//		else {
+	//			system("pause");
+	//			return true;
+	//		}
+
+	//	}
+
+	//	FreeLibrary(dllHandle_);
+
+	//	system("pause");
+	//	return false;
+	//}
 };
+
 //*********************************************************************************************************
 void modechange(double frametime)
 {
@@ -3416,6 +3814,12 @@ int main(int argc, char** argv)
 	application->init(resourceDir);
 	application->initGeom(resourceDir);
 
+	//float dmxError = application->initDMX();
+	//if (dmxError)
+	//{
+		//cout << "There was an error intializing the DMX" << endl;
+	//}
+
 #ifndef NOAUDIO
 	thread t1(start_recording);
 #endif
@@ -3461,8 +3865,7 @@ int main(int argc, char** argv)
 		//fps[2] += sw.elapse_micro();
 		//sw.start();
 		#ifndef NOAUDIO
-			application->aquire_fft_scaling_arrays();
-			
+			application->aquire_fft_scaling_arrays();	
 		#endif	
 		//fps[3] += sw.elapse_micro();
 	//	sw.start();
@@ -3498,6 +3901,13 @@ int main(int argc, char** argv)
 		{
 			application->texturetest_render_to_framebuffer();
 			application->texturetest_render();
+		}
+		else if (rendermode == MODE_DEPTH_PIXEL)
+		{
+			application->compute();
+
+			application->get_SSBO_back();
+			application->read_atomic();
 		}
 		else
 		{
